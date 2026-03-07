@@ -1,4 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -8,7 +9,9 @@ const FIXTURE_DIR = path.join(REPO_ROOT, "fixtures", "rust-core-v2");
 const MANIFEST_PATH = path.join(FIXTURE_DIR, "manifest.json");
 
 function usage() {
-  console.error("Usage: node scripts/import-rust-fixture.mjs <draft.json>");
+  console.error(
+    "Usage: node scripts/import-rust-fixture.mjs <draft.json> [--snapshot-baseline]"
+  );
 }
 
 function normalizeString(value) {
@@ -79,8 +82,29 @@ async function writeFixtureHtml(filename, html) {
   return targetPath;
 }
 
+function runNodeScript(scriptPath) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [scriptPath], {
+      cwd: REPO_ROOT,
+      stdio: "inherit",
+    });
+
+    child.on("error", reject);
+    child.on("exit", (code) => {
+      if (code === 0) {
+        resolve();
+        return;
+      }
+      reject(new Error(`command failed with exit code ${code}: ${scriptPath}`));
+    });
+  });
+}
+
 async function main() {
-  const draftPath = process.argv[2];
+  const args = process.argv.slice(2);
+  const draftPath = args.find((arg) => !arg.startsWith("--"));
+  const snapshotBaseline = args.includes("--snapshot-baseline");
+
   if (!draftPath) {
     usage();
     process.exitCode = 1;
@@ -102,6 +126,11 @@ async function main() {
   console.log(`Imported fixture draft: ${manifestEntry.id}`);
   console.log(`- HTML: ${targetPath}`);
   console.log(`- Manifest: ${MANIFEST_PATH}`);
+
+  if (snapshotBaseline) {
+    console.log("- Refreshing regression baseline...");
+    await runNodeScript(path.join(REPO_ROOT, "scripts", "snapshot-rust-fixture-baseline.mjs"));
+  }
 }
 
 main().catch((error) => {

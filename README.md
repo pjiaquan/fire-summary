@@ -169,6 +169,12 @@ node scripts/import-rust-fixture.mjs /path/to/draft.json
 - 寫入 `fixtures/rust-core-v2/<id>.html`
 - 自動更新 `fixtures/rust-core-v2/manifest.json`
 
+如果你要在匯入後順手同步 baseline，也可以直接跑：
+
+```bash
+node scripts/import-rust-fixture.mjs /path/to/draft.json --snapshot-baseline
+```
+
 ## Rust Fixture Regression
 
 如果你要批次檢查 Rust Core v2 的抽取與分類規則，可以執行：
