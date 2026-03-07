@@ -66,6 +66,28 @@ pub struct ProcessedArticleResult {
 }
 
 #[derive(Debug, Serialize)]
+pub struct BlockExtractionResult {
+    #[serde(rename = "cleaned_text")]
+    pub cleaned_text: String,
+    pub source: String,
+    pub outline: Vec<OutlineNode>,
+    pub blocks: Vec<ArticleBlock>,
+    pub quality: QualityReport,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PageClassificationResult {
+    pub page_type: PageType,
+    pub confidence: f64,
+    pub warnings: Vec<String>,
+    pub safe_to_summarize: bool,
+    pub source: String,
+    pub cleaned_chars: usize,
+    pub block_count: usize,
+}
+
+#[derive(Debug, Serialize)]
 pub struct SummaryStats {
     pub cleaned_chars: usize,
     pub sentence_count: usize,
@@ -251,6 +273,69 @@ pub fn process_article(input: JsValue) -> Result<JsValue, JsValue> {
             "failed to serialize processed article result: {err}"
         ))
     })
+}
+
+#[wasm_bindgen]
+pub fn extract_article_blocks(input: JsValue) -> Result<JsValue, JsValue> {
+    let input: ArticleInput = serde_wasm_bindgen::from_value(input)
+        .map_err(|err| JsValue::from_str(&format!("invalid input: {err}")))?;
+    let title = normalize_optional(&input.title);
+    let url = normalize_optional(&input.url);
+    let extracted = if let Some(selection) = normalize_optional(&input.selection_text) {
+        if selection.chars().count() >= MIN_SELECTION_CHARS {
+            build_selection_extraction(&selection, title.as_deref(), url.as_deref())
+        } else {
+            extract_from_page(&input.html, &input.text_content, title.as_deref(), url.as_deref())
+        }
+    } else {
+        extract_from_page(&input.html, &input.text_content, title.as_deref(), url.as_deref())
+    }
+    .ok_or_else(|| JsValue::from_str("no usable article text"))?;
+
+    let result = BlockExtractionResult {
+        cleaned_text: extracted.cleaned_text,
+        source: extracted.source,
+        outline: extracted.outline,
+        blocks: extracted.blocks,
+        quality: extracted.quality,
+    };
+
+    serde_wasm_bindgen::to_value(&result).map_err(|err| {
+        JsValue::from_str(&format!(
+            "failed to serialize block extraction result: {err}"
+        ))
+    })
+}
+
+#[wasm_bindgen]
+pub fn classify_page(input: JsValue) -> Result<JsValue, JsValue> {
+    let input: ArticleInput = serde_wasm_bindgen::from_value(input)
+        .map_err(|err| JsValue::from_str(&format!("invalid input: {err}")))?;
+    let title = normalize_optional(&input.title);
+    let url = normalize_optional(&input.url);
+    let extracted = if let Some(selection) = normalize_optional(&input.selection_text) {
+        if selection.chars().count() >= MIN_SELECTION_CHARS {
+            build_selection_extraction(&selection, title.as_deref(), url.as_deref())
+        } else {
+            extract_from_page(&input.html, &input.text_content, title.as_deref(), url.as_deref())
+        }
+    } else {
+        extract_from_page(&input.html, &input.text_content, title.as_deref(), url.as_deref())
+    }
+    .ok_or_else(|| JsValue::from_str("no usable article text"))?;
+
+    let result = PageClassificationResult {
+        page_type: extracted.quality.page_type.clone(),
+        confidence: extracted.quality.confidence,
+        warnings: extracted.quality.warnings.clone(),
+        safe_to_summarize: extracted.quality.safe_to_summarize,
+        source: extracted.source,
+        cleaned_chars: extracted.cleaned_text.chars().count(),
+        block_count: extracted.blocks.len(),
+    };
+
+    serde_wasm_bindgen::to_value(&result)
+        .map_err(|err| JsValue::from_str(&format!("failed to serialize page classification: {err}")))
 }
 
 fn process_article_input(input: ArticleInput) -> Result<ProcessingOutput, String> {
@@ -1515,22 +1600,12 @@ fn is_cjk(ch: char) -> bool {
 mod tests {
     use super::*;
 
+    const ARTICLE_FIXTURE: &str = include_str!("../fixtures/rust-core-v2/article.html");
+    const SEARCH_RESULTS_FIXTURE: &str =
+        include_str!("../fixtures/rust-core-v2/search-results.html");
+
     #[test]
     fn process_article_prefers_html_blocks_and_builds_prompt_payload() {
-        let html = r#"
-        <html lang="en">
-          <body>
-            <article class="article-content">
-              <h1>Rust Core V2</h1>
-              <p>Fire Summary now extracts article blocks directly from HTML instead of relying on a flat body text fallback.</p>
-              <p>The new pipeline ranks paragraph blocks, preserves section context, and builds a prompt-ready payload for Gemini.</p>
-              <h2>Why it matters</h2>
-              <p>This reduces token waste and gives the model a denser context window with clearer structural cues.</p>
-            </article>
-          </body>
-        </html>
-        "#;
-
         let result = process_article_input(ArticleInput {
             url: Some("https://example.com/rust-core-v2".to_string()),
             title: Some("Rust Core V2".to_string()),
@@ -1541,7 +1616,7 @@ mod tests {
             published_time: None,
             selection_text: None,
             text_content: None,
-            html: Some(html.to_string()),
+            html: Some(ARTICLE_FIXTURE.to_string()),
             max_sentences: Some(3),
             max_chars: Some(320),
             max_prompt_chars: Some(1200),
@@ -1589,19 +1664,6 @@ mod tests {
 
     #[test]
     fn process_article_classifies_search_results_pages() {
-        let html = r#"
-        <html>
-          <body>
-            <main>
-              <p>Rust wasm browser extension patterns</p>
-              <p>Fire Summary GitHub repository and release workflow notes</p>
-              <p>Prompt engineering techniques for article summarization</p>
-              <p>Extension packaging tips for Firefox Android and desktop</p>
-            </main>
-          </body>
-        </html>
-        "#;
-
         let result = process_article_input(ArticleInput {
             url: Some("https://example.com/search?q=rust+extension".to_string()),
             title: Some("Search results for rust extension".to_string()),
@@ -1612,7 +1674,7 @@ mod tests {
             published_time: None,
             selection_text: None,
             text_content: None,
-            html: Some(html.to_string()),
+            html: Some(SEARCH_RESULTS_FIXTURE.to_string()),
             max_sentences: Some(3),
             max_chars: Some(320),
             max_prompt_chars: Some(1200),
