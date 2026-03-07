@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fire Summary Discussion</title>
+    <link rel="stylesheet" href="discussion.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="context-card">
+        <p id="context-model" class="meta"></p>
+        <h2 id="context-title" class="context-title">尚未載入摘要</h2>
+        <p id="context-url" class="context-url"></p>
+        <div id="context-summary" class="markdown empty">尚未找到摘要內容。</div>
+      </section>
+
+      <section id="messages" class="messages"></section>
+
+      <form id="composer" class="composer">
+        <label class="composer-label" for="followup-input">延伸討論</label>
+        <textarea
+          id="followup-input"
+          rows="4"
+          placeholder="例如：請從工程風險、產品價值、下一步行動三個角度延伸分析。"
+        ></textarea>
+        <div class="composer-actions">
+          <p id="composer-status" class="composer-status">可根據目前摘要繼續追問。</p>
+          <div class="composer-buttons">
+            <button id="export-button" type="button" class="secondary-button">匯出討論</button>
+            <div class="send-button-wrap">
+              <button id="send-button" type="submit" aria-describedby="send-shortcut-tooltip">
+                <span class="button-label">送出問題</span>
+                <span class="button-spinner" aria-hidden="true"></span>
+              </button>
+              <span id="send-shortcut-tooltip" class="shortcut-tooltip" role="tooltip">
+                Ctrl + Enter 送出
+              </span>
+            </div>
+          </div>
+        </div>
+      </form>
+    </main>
+
+    <script type="module" src="discussion.js"></script>
+  </body>
+</html>
