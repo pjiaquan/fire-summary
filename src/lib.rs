@@ -6,6 +6,8 @@ use wasm_bindgen::prelude::*;
 const MIN_BLOCK_CHARS: usize = 40;
 const MIN_LIST_ITEM_CHARS: usize = 20;
 const MIN_HEADING_CHARS: usize = 4;
+const MIN_CODE_BLOCK_CHARS: usize = 16;
+const MIN_TABLE_BLOCK_CHARS: usize = 20;
 const MIN_SELECTION_CHARS: usize = 80;
 const DEFAULT_SUMMARY_SENTENCES: usize = 3;
 const DEFAULT_SUMMARY_CHARS: usize = 320;
@@ -133,6 +135,7 @@ pub enum BlockKind {
     ListItem,
     Quote,
     Code,
+    Table,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -393,7 +396,12 @@ fn process_article_input(input: ArticleInput) -> Result<ProcessingOutput, String
         max_sentences,
         max_chars,
     );
-    let ranked_blocks = rank_blocks(&extracted.blocks, title.as_deref(), excerpt.as_deref());
+    let ranked_blocks = rank_blocks(
+        &extracted.blocks,
+        title.as_deref(),
+        excerpt.as_deref(),
+        &extracted.quality.page_type,
+    );
     let article = ArticleMetadata {
         title: title.clone(),
         url: source_url,
@@ -704,12 +712,12 @@ fn link_density(element: ElementRef<'_>) -> f64 {
 
 fn extract_blocks(element: ElementRef<'_>) -> Vec<String> {
     let selector =
-        Selector::parse("h1, h2, h3, h4, p, li, blockquote, pre").expect("valid selector");
+        Selector::parse("h1, h2, h3, h4, p, li, blockquote, pre, table").expect("valid selector");
 
     let blocks = element
         .select(&selector)
         .filter(|child| !is_inside_ignored_context(*child))
-        .map(text_from_element)
+        .map(block_text_from_element)
         .filter(|text| text.chars().count() >= MIN_BLOCK_CHARS)
         .collect::<Vec<_>>();
 
@@ -727,7 +735,7 @@ fn extract_blocks(element: ElementRef<'_>) -> Vec<String> {
 
 fn extract_structured_blocks(element: ElementRef<'_>) -> Vec<ArticleBlock> {
     let selector =
-        Selector::parse("h1, h2, h3, h4, p, li, blockquote, pre").expect("valid selector");
+        Selector::parse("h1, h2, h3, h4, p, li, blockquote, pre, table").expect("valid selector");
     let mut blocks = Vec::new();
     let mut seen = HashSet::new();
     let mut heading_stack: Vec<(u8, String)> = Vec::new();
@@ -738,7 +746,7 @@ fn extract_structured_blocks(element: ElementRef<'_>) -> Vec<ArticleBlock> {
             continue;
         }
 
-        let text = text_from_element(child);
+        let text = block_text_from_element(child);
         if text.is_empty() || is_probable_boilerplate(&text) {
             continue;
         }
@@ -747,6 +755,8 @@ fn extract_structured_blocks(element: ElementRef<'_>) -> Vec<ArticleBlock> {
         let min_chars = match kind {
             BlockKind::Heading => MIN_HEADING_CHARS,
             BlockKind::ListItem => MIN_LIST_ITEM_CHARS,
+            BlockKind::Code => MIN_CODE_BLOCK_CHARS,
+            BlockKind::Table => MIN_TABLE_BLOCK_CHARS,
             _ => MIN_BLOCK_CHARS,
         };
 
@@ -809,7 +819,8 @@ fn extract_structured_blocks(element: ElementRef<'_>) -> Vec<ArticleBlock> {
 
 fn extract_fallback_blocks(document: &Html) -> Vec<ArticleBlock> {
     let selector =
-        Selector::parse("article, main, p, h1, h2, h3, li, blockquote, pre").expect("valid selector");
+        Selector::parse("article, main, p, h1, h2, h3, li, blockquote, pre, table")
+            .expect("valid selector");
     let mut blocks = Vec::new();
     let mut heading_stack: Vec<(u8, String)> = Vec::new();
     let mut seen = HashSet::new();
@@ -820,7 +831,7 @@ fn extract_fallback_blocks(document: &Html) -> Vec<ArticleBlock> {
             continue;
         }
 
-        let text = text_from_element(child);
+        let text = block_text_from_element(child);
         if text.is_empty() || is_probable_boilerplate(&text) || !seen.insert(text.clone()) {
             continue;
         }
@@ -829,6 +840,8 @@ fn extract_fallback_blocks(document: &Html) -> Vec<ArticleBlock> {
         let min_chars = match kind {
             BlockKind::Heading => MIN_HEADING_CHARS,
             BlockKind::ListItem => MIN_LIST_ITEM_CHARS,
+            BlockKind::Code => MIN_CODE_BLOCK_CHARS,
+            BlockKind::Table => MIN_TABLE_BLOCK_CHARS,
             _ => MIN_BLOCK_CHARS,
         };
         if text.chars().count() < min_chars {
@@ -875,6 +888,8 @@ fn normalize_structured_blocks(blocks: Vec<ArticleBlock>) -> Vec<ArticleBlock> {
         let min_chars = match block.kind {
             BlockKind::Heading => MIN_HEADING_CHARS,
             BlockKind::ListItem => MIN_LIST_ITEM_CHARS,
+            BlockKind::Code => MIN_CODE_BLOCK_CHARS,
+            BlockKind::Table => MIN_TABLE_BLOCK_CHARS,
             _ => MIN_BLOCK_CHARS,
         };
 
@@ -911,6 +926,7 @@ fn rank_blocks(
     blocks: &[ArticleBlock],
     title: Option<&str>,
     excerpt: Option<&str>,
+    page_type: &PageType,
 ) -> Vec<RankedBlock> {
     let content_blocks = blocks
         .iter()
@@ -962,6 +978,23 @@ fn rank_blocks(
             } else {
                 0.0
             };
+            let structure_bonus = match block.kind {
+                BlockKind::Code => {
+                    if matches!(page_type, PageType::DocsPage) {
+                        1.15
+                    } else {
+                        0.35
+                    }
+                }
+                BlockKind::Table => {
+                    if matches!(page_type, PageType::DocsPage | PageType::ProductPage) {
+                        1.2
+                    } else {
+                        0.45
+                    }
+                }
+                _ => 0.0,
+            };
             let unique_token_ratio = tokens.iter().collect::<HashSet<_>>().len() as f64
                 / tokens.len() as f64;
             let novelty_bonus = if unique_token_ratio >= 0.72 { 0.25 } else { 0.0 };
@@ -972,7 +1005,8 @@ fn rank_blocks(
                 + position_bonus
                 + heading_bonus
                 + length_bonus
-                + number_bonus;
+                + number_bonus
+                + structure_bonus;
             let score = score + sentence_bonus + novelty_bonus - list_penalty;
             let mut reasons = Vec::new();
             if title_overlap > 0.0 {
@@ -995,6 +1029,12 @@ fn rank_blocks(
             }
             if matches!(block.kind, BlockKind::ListItem) {
                 reasons.push("list-item".to_string());
+            }
+            if matches!(block.kind, BlockKind::Code) {
+                reasons.push("code-block".to_string());
+            }
+            if matches!(block.kind, BlockKind::Table) {
+                reasons.push("table-block".to_string());
             }
 
             Some(RankedBlock {
@@ -1235,6 +1275,10 @@ fn assess_quality(
                 || block.text.contains("bash ")
         })
         .count();
+    let table_like_blocks = blocks
+        .iter()
+        .filter(|block| matches!(block.kind, BlockKind::Table))
+        .count();
     let lower_title = title.unwrap_or_default().to_ascii_lowercase();
     let lower_url = url.unwrap_or_default().to_ascii_lowercase();
     let search_signal = lower_url.contains("/search")
@@ -1297,7 +1341,8 @@ fn assess_quality(
         (PageType::PaywalledPage, 0.78)
     } else if search_signal && (list_ratio >= 0.35 || short_block_ratio >= 0.45) {
         (PageType::SearchResults, 0.84)
-    } else if docs_signal && (heading_count >= 1 || code_like_blocks >= 1) {
+    } else if docs_signal && (heading_count >= 1 || code_like_blocks >= 1 || table_like_blocks >= 1)
+    {
         (PageType::DocsPage, 0.82)
     } else if product_signal && numeric_block_ratio >= 0.25 {
         (PageType::ProductPage, 0.74)
@@ -1356,6 +1401,7 @@ fn block_kind_from_tag(tag: &str) -> BlockKind {
         "li" => BlockKind::ListItem,
         "blockquote" => BlockKind::Quote,
         "pre" => BlockKind::Code,
+        "table" => BlockKind::Table,
         _ => BlockKind::Paragraph,
     }
 }
@@ -1376,8 +1422,13 @@ fn format_block_for_prompt(block: &ArticleBlock) -> String {
     } else {
         format!("[{}]\n", block.heading_path.join(" > "))
     };
+    let prefix = match block.kind {
+        BlockKind::Code => "[Code]\n",
+        BlockKind::Table => "[Table]\n",
+        _ => "",
+    };
 
-    format!("{path}{}", block.text)
+    format!("{path}{prefix}{}", block.text)
 }
 
 fn is_inside_ignored_context(element: ElementRef<'_>) -> bool {
@@ -1406,6 +1457,55 @@ fn is_inside_ignored_context(element: ElementRef<'_>) -> bool {
 
 fn text_from_element(element: ElementRef<'_>) -> String {
     normalize_text(&element.text().collect::<Vec<_>>().join(" "))
+}
+
+fn block_text_from_element(element: ElementRef<'_>) -> String {
+    match element.value().name() {
+        "pre" => code_text_from_element(element),
+        "table" => table_text_from_element(element),
+        _ => text_from_element(element),
+    }
+}
+
+fn code_text_from_element(element: ElementRef<'_>) -> String {
+    let raw = element.text().collect::<Vec<_>>().join("");
+    let mut lines = Vec::new();
+
+    for line in raw.lines() {
+        let trimmed = line.trim_end();
+        if trimmed.trim().is_empty() {
+            if !lines.last().map(|value: &String| value.is_empty()).unwrap_or(false) {
+                lines.push(String::new());
+            }
+            continue;
+        }
+        lines.push(trimmed.to_string());
+    }
+
+    lines.join("\n").trim().to_string()
+}
+
+fn table_text_from_element(element: ElementRef<'_>) -> String {
+    let row_selector = Selector::parse("tr").expect("valid selector");
+    let cell_selector = Selector::parse("th, td").expect("valid selector");
+    let mut rows = Vec::new();
+
+    for row in element.select(&row_selector) {
+        let cells = row
+            .select(&cell_selector)
+            .map(text_from_element)
+            .filter(|text| !text.is_empty())
+            .collect::<Vec<_>>();
+        if !cells.is_empty() {
+            rows.push(cells.join(" | "));
+        }
+    }
+
+    if rows.is_empty() {
+        text_from_element(element)
+    } else {
+        rows.join("\n")
+    }
 }
 
 fn join_block_text(blocks: &[ArticleBlock]) -> String {
@@ -1806,6 +1906,56 @@ mod tests {
 
         assert!(matches!(result.quality.page_type, PageType::DocsPage));
         assert!(result.quality.safe_to_summarize);
+    }
+
+    #[test]
+    fn process_article_preserves_table_and_code_blocks_for_docs_pages() {
+        let html = r#"
+        <html lang="en">
+          <body>
+            <article class="docs-page">
+              <h1>CLI Reference</h1>
+              <p>Use the table and command examples below to configure the extension.</p>
+              <table>
+                <tr><th>Flag</th><th>Description</th></tr>
+                <tr><td>--verify</td><td>Validate and run regression after importing a fixture draft.</td></tr>
+                <tr><td>--snapshot-baseline</td><td>Refresh the fixture baseline after review.</td></tr>
+              </table>
+              <pre>node scripts/import-rust-fixture.mjs draft.json --verify --snapshot-baseline</pre>
+            </article>
+          </body>
+        </html>
+        "#;
+
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/docs/cli-reference".to_string()),
+            title: Some("CLI Reference".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: None,
+            html: Some(html.to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
+        })
+        .expect("docs page with table and code should be processed");
+
+        assert!(matches!(result.quality.page_type, PageType::DocsPage));
+        assert!(result
+            .blocks
+            .iter()
+            .any(|block| matches!(block.kind, BlockKind::Table)));
+        assert!(result
+            .blocks
+            .iter()
+            .any(|block| matches!(block.kind, BlockKind::Code)));
+        assert!(result.prompt_payload.compressed_context.contains("[Table]"));
+        assert!(result.prompt_payload.compressed_context.contains("[Code]"));
     }
 
     #[test]
