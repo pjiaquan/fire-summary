@@ -738,6 +738,13 @@ function buildDiscussionExportText() {
   lines.push("");
   lines.push((currentContext?.summaryMarkdown || "尚未找到摘要內容。").trim());
 
+  if (currentContext?.compressedContext) {
+    lines.push("");
+    lines.push("高訊號文章內容");
+    lines.push("");
+    lines.push(currentContext.compressedContext.trim());
+  }
+
   if (messages.length > 0) {
     lines.push("");
     lines.push("延伸討論");
@@ -778,6 +785,26 @@ function buildConversationSystemInstruction(settings, context) {
     context.summaryMarkdown || "",
     "",
     context.excerpt ? `Context excerpt:\n${context.excerpt}\n` : "",
+    context.articleHeader ? `Structured article header:\n${context.articleHeader}\n` : "",
+    context.compressedContext ? `High-signal article context:\n${context.compressedContext}\n` : "",
+    Array.isArray(context.keyPoints) && context.keyPoints.length
+      ? `Key points:\n- ${context.keyPoints.join("\n- ")}\n`
+      : "",
+    Array.isArray(context.supportingBlocks) && context.supportingBlocks.length
+      ? `Supporting blocks:\n- ${context.supportingBlocks.join("\n- ")}\n`
+      : "",
+    context.selectionStrategy ? `Context selection strategy: ${context.selectionStrategy}\n` : "",
+    context.quality && typeof context.quality === "object"
+      ? `Extraction quality:\n- Page type: ${context.quality.pageType || "unknown"}\n- Confidence: ${
+          typeof context.quality.confidence === "number"
+            ? context.quality.confidence.toFixed(2)
+            : "unknown"
+        }\n- Safe to summarize: ${context.quality.safeToSummarize ? "yes" : "no"}${
+          Array.isArray(context.quality.warnings) && context.quality.warnings.length
+            ? `\n- Warnings: ${context.quality.warnings.join(" | ")}`
+            : ""
+        }\n`
+      : "",
   ]
     .filter(Boolean)
     .join("\n");

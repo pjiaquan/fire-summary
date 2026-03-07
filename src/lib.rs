@@ -10,8 +10,10 @@ const MIN_SELECTION_CHARS: usize = 80;
 const DEFAULT_SUMMARY_SENTENCES: usize = 3;
 const DEFAULT_SUMMARY_CHARS: usize = 320;
 const DEFAULT_PROMPT_CHARS: usize = 3600;
+const DEFAULT_PROMPT_TOKENS: usize = 900;
 const MAX_SOURCE_CHARS: usize = 12_000;
 const MAX_PROMPT_CHARS: usize = 6000;
+const MAX_PROMPT_TOKENS: usize = 1600;
 const MAX_SUPPORTING_BLOCKS: usize = 6;
 const SENTENCE_SPLITTERS: [char; 8] = ['。', '！', '？', '.', '!', '?', ';', '；'];
 const IGNORED_TAGS: [&str; 11] = [
@@ -40,6 +42,8 @@ pub struct ArticleInput {
     pub max_chars: Option<usize>,
     #[serde(alias = "maxPromptChars")]
     pub max_prompt_chars: Option<usize>,
+    #[serde(alias = "maxPromptTokens")]
+    pub max_prompt_tokens: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
@@ -69,6 +73,7 @@ pub struct SummaryStats {
     pub block_count: usize,
     pub prompt_chars: usize,
     pub estimated_tokens: usize,
+    pub prompt_tokens: usize,
 }
 
 #[derive(Debug, Serialize)]
@@ -133,6 +138,8 @@ pub struct PromptPayload {
     pub key_points: Vec<String>,
     pub supporting_blocks: Vec<String>,
     pub token_budget_used: usize,
+    pub token_budget_target: usize,
+    pub selection_strategy: String,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -253,6 +260,10 @@ fn process_article_input(input: ArticleInput) -> Result<ProcessingOutput, String
         .max_prompt_chars
         .unwrap_or(DEFAULT_PROMPT_CHARS)
         .clamp(1200, MAX_PROMPT_CHARS);
+    let max_prompt_tokens = input
+        .max_prompt_tokens
+        .unwrap_or(DEFAULT_PROMPT_TOKENS)
+        .clamp(320, MAX_PROMPT_TOKENS);
 
     let selection_text = normalize_optional(&input.selection_text);
     let title = normalize_optional(&input.title);
@@ -298,7 +309,9 @@ fn process_article_input(input: ArticleInput) -> Result<ProcessingOutput, String
         &summary,
         &extracted.blocks,
         &ranked_blocks,
+        &extracted.quality,
         max_prompt_chars,
+        max_prompt_tokens,
     );
     let stats = SummaryStats {
         cleaned_chars: extracted.cleaned_text.chars().count(),
@@ -307,6 +320,7 @@ fn process_article_input(input: ArticleInput) -> Result<ProcessingOutput, String
         block_count: extracted.blocks.len(),
         prompt_chars: prompt_payload.compressed_context.chars().count(),
         estimated_tokens: estimate_tokens(&prompt_payload.compressed_context),
+        prompt_tokens: prompt_payload.token_budget_used,
     };
 
     Ok(ProcessingOutput {
@@ -864,7 +878,9 @@ fn build_prompt_payload(
     summary: &str,
     blocks: &[ArticleBlock],
     ranked_blocks: &[RankedBlock],
+    quality: &QualityReport,
     max_prompt_chars: usize,
+    max_prompt_tokens: usize,
 ) -> PromptPayload {
     let article_header = build_article_header(article);
     let key_points = split_sentences(summary).into_iter().take(3).collect::<Vec<_>>();
@@ -875,6 +891,8 @@ fn build_prompt_payload(
     let mut supporting_blocks = Vec::new();
     let mut compressed_sections = Vec::new();
     let mut used_chars = 0usize;
+    let mut used_tokens = estimate_tokens(&article_header);
+    let mut used_sections = HashSet::new();
 
     for ranked in ranked_blocks.iter().take(MAX_SUPPORTING_BLOCKS.saturating_mul(2)) {
         let Some(block) = block_lookup.get(ranked.block_id.as_str()) else {
@@ -885,17 +903,37 @@ fn build_prompt_payload(
         if supporting_blocks.contains(&block_text) {
             continue;
         }
+        let section_key = block
+            .heading_path
+            .last()
+            .cloned()
+            .unwrap_or_else(|| format!("__lead-{}", block.position));
+        let block_tokens = estimate_tokens(&block_text);
+        let is_new_section = used_sections.insert(section_key.clone());
+        let max_blocks = if is_new_section {
+            MAX_SUPPORTING_BLOCKS
+        } else {
+            MAX_SUPPORTING_BLOCKS.saturating_sub(1)
+        };
+        if supporting_blocks.len() >= max_blocks && !is_new_section {
+            continue;
+        }
 
         let addition = if compressed_sections.is_empty() {
             block_text.chars().count()
         } else {
             block_text.chars().count() + 2
         };
-        if used_chars + addition > max_prompt_chars {
+        if used_chars + addition > max_prompt_chars || used_tokens + block_tokens > max_prompt_tokens
+        {
+            if is_new_section {
+                used_sections.remove(&section_key);
+            }
             continue;
         }
 
         used_chars += addition;
+        used_tokens += block_tokens;
         supporting_blocks.push(block_text.clone());
         compressed_sections.push(block_text);
         if supporting_blocks.len() >= MAX_SUPPORTING_BLOCKS {
@@ -908,8 +946,21 @@ fn build_prompt_payload(
     } else {
         compressed_sections.join("\n\n")
     };
+    let quality_note = format_quality_note(quality);
+    let compressed_context = if quality_note.is_empty() {
+        compressed_context
+    } else {
+        format!("{quality_note}\n\n{compressed_context}")
+    };
     let token_budget_used =
         estimate_tokens(&article_header) + estimate_tokens(&compressed_context);
+    let selection_strategy = if supporting_blocks.is_empty() {
+        "fallback-truncate".to_string()
+    } else if used_sections.len() > 1 {
+        "ranked-blocks-diverse-sections".to_string()
+    } else {
+        "ranked-blocks".to_string()
+    };
 
     PromptPayload {
         article_header,
@@ -917,6 +968,8 @@ fn build_prompt_payload(
         key_points,
         supporting_blocks,
         token_budget_used,
+        token_budget_target: max_prompt_tokens,
+        selection_strategy,
     }
 }
 
@@ -942,6 +995,20 @@ fn build_article_header(article: &ArticleMetadata) -> String {
         lines.push(format!("Language: {language}"));
     }
     lines.push(format!("Extraction source: {}", article.source));
+
+    lines.join("\n")
+}
+
+fn format_quality_note(quality: &QualityReport) -> String {
+    let mut lines = Vec::new();
+    lines.push(format!(
+        "Extraction quality: {:?} page, confidence {:.2}, safe_to_summarize={}",
+        quality.page_type, quality.confidence, quality.safe_to_summarize
+    ));
+
+    if !quality.warnings.is_empty() {
+        lines.push(format!("Warnings: {}", quality.warnings.join(" | ")));
+    }
 
     lines.join("\n")
 }
@@ -1342,6 +1409,7 @@ mod tests {
             max_sentences: Some(3),
             max_chars: Some(320),
             max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
         })
         .expect("article should be processed");
 
@@ -1349,6 +1417,7 @@ mod tests {
         assert!(result.blocks.len() >= 3);
         assert!(result.prompt_payload.compressed_context.contains("prompt-ready payload"));
         assert!(!result.prompt_payload.key_points.is_empty());
+        assert!(result.prompt_payload.token_budget_used <= result.prompt_payload.token_budget_target);
     }
 
     #[test]
@@ -1369,11 +1438,16 @@ mod tests {
             max_sentences: Some(3),
             max_chars: Some(320),
             max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
         })
         .expect("selection should be processed");
 
         assert_eq!(result.source, "selection");
         assert!(matches!(result.quality.page_type, PageType::Selection));
         assert!(result.cleaned_text.contains("compressed context payload"));
+        assert!(result
+            .prompt_payload
+            .selection_strategy
+            .starts_with("ranked-blocks"));
     }
 }

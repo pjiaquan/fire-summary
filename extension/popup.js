@@ -1176,14 +1176,17 @@ function maybeAutoExportSummary(settings) {
 }
 
 async function persistDiscussionContext(processedArticle, summaryMarkdown, summaryTitle, usedModel) {
+  const promptPayload = processedArticle?.promptPayload || {};
+  const quality = processedArticle?.quality || {};
   const contextId = hashString(
     JSON.stringify({
-      version: 1,
+      version: 2,
       articleTitle: processedArticle.title || "",
       articleUrl: latestArticleUrl,
       summaryMarkdown,
       summaryTitle,
       usedModel,
+      compressedContext: promptPayload.compressedContext || "",
     })
   );
 
@@ -1192,6 +1195,14 @@ async function persistDiscussionContext(processedArticle, summaryMarkdown, summa
     articleTitle: processedArticle.title || "",
     articleUrl: latestArticleUrl,
     excerpt: processedArticle.excerpt || "",
+    articleHeader: promptPayload.articleHeader || "",
+    compressedContext: promptPayload.compressedContext || "",
+    keyPoints: Array.isArray(promptPayload.keyPoints) ? promptPayload.keyPoints.slice(0, 5) : [],
+    supportingBlocks: Array.isArray(promptPayload.supportingBlocks)
+      ? promptPayload.supportingBlocks.slice(0, 6)
+      : [],
+    selectionStrategy: promptPayload.selectionStrategy || "",
+    quality: quality && typeof quality === "object" ? quality : null,
     summaryMarkdown,
     summaryTitle,
     usedModel,

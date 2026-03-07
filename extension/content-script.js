@@ -49,6 +49,7 @@ function collectArticleInput() {
     max_sentences: 3,
     max_chars: 320,
     maxPromptChars: 3600,
+    maxPromptTokens: 900,
   };
 }
 
