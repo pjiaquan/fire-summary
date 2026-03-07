@@ -10,10 +10,17 @@ const targetLanguageInput = document.getElementById("target-language");
 const targetLanguageOptions = document.getElementById("target-language-options");
 const customPromptInput = document.getElementById("custom-prompt");
 const fontSizeInput = document.getElementById("font-size");
+const titleFontInput = document.getElementById("title-font");
+const bodyFontInput = document.getElementById("body-font");
+const fontWeightInput = document.getElementById("font-weight");
+const lineHeightInput = document.getElementById("line-height");
 const streamOutputInput = document.getElementById("stream-output");
 const autoExportTxtInput = document.getElementById("auto-export-txt");
 const clearCacheButton = document.getElementById("clear-cache-button");
 const CACHE_INDEX_KEY = "__summaryCacheIndex";
+const FONT_FAMILY_OPTIONS = new Set(["pingfang", "systemSans", "notoSansTc", "serif"]);
+const FONT_WEIGHT_OPTIONS = new Set(["400", "500", "600", "700"]);
+const LINE_HEIGHT_OPTIONS = new Set(["1.4", "1.5", "1.6", "1.7", "1.8"]);
 const DEFAULT_SYSTEM_PROMPT = [
   "You summarize webpage articles for browser extension users.",
   "Respond in {{targetLanguage}}.",
@@ -33,6 +40,10 @@ const DEFAULT_SETTINGS = {
   targetLanguage: "繁體中文",
   customPrompt: "",
   fontSize: "medium",
+  titleFont: "pingfang",
+  bodyFont: "systemSans",
+  fontWeight: "500",
+  lineHeight: "1.5",
   streamOutput: false,
   autoExportTxt: false,
 };
@@ -170,6 +181,10 @@ function populateTargetLanguageOptions() {
   ).join("");
 }
 
+function pickStoredValue(value, allowedValues, fallback) {
+  return allowedValues.has(value) ? value : fallback;
+}
+
 function storageGet(defaults) {
   const maybePromise = api.storage.local.get(defaults);
   if (maybePromise && typeof maybePromise.then === "function") {
@@ -241,6 +256,26 @@ async function loadSettings() {
     targetLanguageInput.value = settings.targetLanguage || DEFAULT_SETTINGS.targetLanguage;
     customPromptInput.value = settings.customPrompt || "";
     fontSizeInput.value = settings.fontSize || DEFAULT_SETTINGS.fontSize;
+    titleFontInput.value = pickStoredValue(
+      settings.titleFont,
+      FONT_FAMILY_OPTIONS,
+      DEFAULT_SETTINGS.titleFont
+    );
+    bodyFontInput.value = pickStoredValue(
+      settings.bodyFont,
+      FONT_FAMILY_OPTIONS,
+      DEFAULT_SETTINGS.bodyFont
+    );
+    fontWeightInput.value = pickStoredValue(
+      String(settings.fontWeight || ""),
+      FONT_WEIGHT_OPTIONS,
+      DEFAULT_SETTINGS.fontWeight
+    );
+    lineHeightInput.value = pickStoredValue(
+      String(settings.lineHeight || ""),
+      LINE_HEIGHT_OPTIONS,
+      DEFAULT_SETTINGS.lineHeight
+    );
     streamOutputInput.checked = Boolean(settings.streamOutput);
     autoExportTxtInput.checked = Boolean(settings.autoExportTxt);
     setSaveStatus("設定已載入");
@@ -262,6 +297,18 @@ form.addEventListener("submit", async (event) => {
     targetLanguage: targetLanguageInput.value.trim() || DEFAULT_SETTINGS.targetLanguage,
     customPrompt: customPromptInput.value.trim(),
     fontSize: fontSizeInput.value || DEFAULT_SETTINGS.fontSize,
+    titleFont: pickStoredValue(titleFontInput.value, FONT_FAMILY_OPTIONS, DEFAULT_SETTINGS.titleFont),
+    bodyFont: pickStoredValue(bodyFontInput.value, FONT_FAMILY_OPTIONS, DEFAULT_SETTINGS.bodyFont),
+    fontWeight: pickStoredValue(
+      fontWeightInput.value,
+      FONT_WEIGHT_OPTIONS,
+      DEFAULT_SETTINGS.fontWeight
+    ),
+    lineHeight: pickStoredValue(
+      lineHeightInput.value,
+      LINE_HEIGHT_OPTIONS,
+      DEFAULT_SETTINGS.lineHeight
+    ),
     streamOutput: streamOutputInput.checked,
     autoExportTxt: autoExportTxtInput.checked,
   };

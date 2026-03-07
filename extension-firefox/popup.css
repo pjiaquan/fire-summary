@@ -7,6 +7,11 @@
   --line: rgba(76, 53, 28, 0.16);
   --accent: #b74d12;
   --accent-strong: #8e3507;
+  --summary-title-font-family:
+    "PingFang TC", "PingFang SC", "PingFang HK", "Heiti TC", "Microsoft JhengHei", sans-serif;
+  --summary-body-font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --summary-font-weight: 500;
+  --summary-line-height: 1.5;
 }
 
 * {
@@ -20,7 +25,7 @@ body {
     radial-gradient(circle at top right, rgba(255, 183, 77, 0.42), transparent 38%),
     linear-gradient(160deg, #fbf7f1 0%, var(--bg) 100%);
   color: var(--ink);
-  font-family: Georgia, "Times New Roman", serif;
+  font-family: var(--summary-body-font-family);
 }
 
 body[data-font-size="small"] .title {
@@ -152,12 +157,16 @@ button:disabled {
   margin-top: 10px;
   font-size: 18px;
   line-height: 1.25;
+  font-family: var(--summary-title-font-family);
+  font-weight: var(--summary-font-weight);
 }
 
 .summary {
   margin: 12px 0 0;
   font-size: 14px;
-  line-height: 1.55;
+  line-height: var(--summary-line-height);
+  font-family: var(--summary-body-font-family);
+  font-weight: var(--summary-font-weight);
 }
 
 .summary.empty {
@@ -190,6 +199,22 @@ button:disabled {
 .summary h3,
 .summary h4 {
   margin: 0 0 12px;
+}
+
+.summary p,
+.summary ul,
+.summary ol,
+.summary li,
+.summary blockquote {
+  line-height: var(--summary-line-height);
+}
+
+.summary h1,
+.summary h2,
+.summary h3,
+.summary h4 {
+  font-family: var(--summary-title-font-family);
+  font-weight: var(--summary-font-weight);
 }
 
 .summary ul,

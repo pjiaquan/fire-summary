@@ -9,9 +9,23 @@ const DEFAULT_SETTINGS = {
   targetLanguage: "繁體中文",
   customPrompt: "",
   fontSize: "medium",
+  titleFont: "pingfang",
+  bodyFont: "systemSans",
+  fontWeight: "500",
+  lineHeight: "1.5",
   streamOutput: false,
   autoExportTxt: false,
 };
+const FONT_FAMILY_MAP = {
+  pingfang:
+    '"PingFang TC", "PingFang SC", "PingFang HK", "Heiti TC", "Microsoft JhengHei", sans-serif',
+  systemSans: 'system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  notoSansTc: '"Noto Sans TC", "Noto Sans CJK TC", "Microsoft JhengHei", sans-serif',
+  serif: '"Iowan Old Style", "Noto Serif TC", "Times New Roman", serif',
+};
+const FONT_FAMILY_KEYS = new Set(Object.keys(FONT_FAMILY_MAP));
+const FONT_WEIGHT_KEYS = new Set(["400", "500", "600", "700"]);
+const LINE_HEIGHT_KEYS = new Set(["1.4", "1.5", "1.6", "1.7", "1.8"]);
 
 const discussionStatus = document.getElementById("discussion-status");
 const contextModel = document.getElementById("context-model");
@@ -69,6 +83,31 @@ function storageSet(items) {
       resolve();
     });
   });
+}
+
+function pickSettingValue(value, allowedValues, fallback) {
+  return allowedValues.has(value) ? value : fallback;
+}
+
+function applyTypographySettings(settings) {
+  const root = document.documentElement;
+  const titleFont = pickSettingValue(settings.titleFont, FONT_FAMILY_KEYS, DEFAULT_SETTINGS.titleFont);
+  const bodyFont = pickSettingValue(settings.bodyFont, FONT_FAMILY_KEYS, DEFAULT_SETTINGS.bodyFont);
+  const fontWeight = pickSettingValue(
+    String(settings.fontWeight || ""),
+    FONT_WEIGHT_KEYS,
+    DEFAULT_SETTINGS.fontWeight
+  );
+  const lineHeight = pickSettingValue(
+    String(settings.lineHeight || ""),
+    LINE_HEIGHT_KEYS,
+    DEFAULT_SETTINGS.lineHeight
+  );
+
+  root.style.setProperty("--summary-title-font-family", FONT_FAMILY_MAP[titleFont]);
+  root.style.setProperty("--summary-body-font-family", FONT_FAMILY_MAP[bodyFont]);
+  root.style.setProperty("--summary-font-weight", fontWeight);
+  root.style.setProperty("--summary-line-height", lineHeight);
 }
 
 function escapeHtml(text) {
@@ -752,6 +791,7 @@ async function submitQuestion() {
   }
 
   const settings = await loadSettings();
+  applyTypographySettings(settings);
 
   const userMessage = { role: "user", content: question };
   const assistantMessage = { role: "assistant", content: "", streaming: true };
@@ -821,6 +861,13 @@ exportButton?.addEventListener("click", () => {
 });
 
 async function initialize() {
+  try {
+    const settings = await loadSettings();
+    applyTypographySettings(settings);
+  } catch {
+    applyTypographySettings(DEFAULT_SETTINGS);
+  }
+
   currentContext = await loadContext();
   if (!currentContext) {
     setDiscussionStatus("目前沒有摘要上下文。請先在 popup 產生一次摘要。");
