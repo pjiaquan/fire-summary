@@ -505,7 +505,7 @@ fn extract_from_page(
     }
 
     let cleaned_text = normalize_optional(text_content)?;
-    if cleaned_text.chars().count() < MIN_BLOCK_CHARS {
+    if cleaned_text.chars().count() < 10 {
         return None;
     }
 

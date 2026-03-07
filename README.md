@@ -178,6 +178,8 @@ bash scripts/run-rust-fixtures.sh
 
 - `fixtures/rust-core-v2/manifest.json`
 
+GitHub Actions 也會在 push / pull request 時自動執行同一套 Rust fixture regression。
+
 ## 目前行為
 
 popup 會向 content script 要目前頁面的 HTML 與 metadata，再交給 `process_article(...)`。如果目標頁面是瀏覽器內建頁面，例如 `chrome://` 或 `about:`，extension 會直接回報無法擷取。

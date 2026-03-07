@@ -17,5 +17,33 @@
     "lang": "en",
     "expectedPageType": "searchResults",
     "expectedSafeToSummarize": false
+  },
+  {
+    "id": "listing-page",
+    "file": "listing-page.html",
+    "title": "Latest posts",
+    "url": "https://example.com/category/engineering",
+    "lang": "en",
+    "expectedPageType": "listingPage",
+    "expectedSafeToSummarize": false
+  },
+  {
+    "id": "product-page",
+    "file": "product-page.html",
+    "title": "Fire Summary Pro pricing",
+    "url": "https://example.com/product/fire-summary-pro",
+    "lang": "en",
+    "expectedPageType": "productPage",
+    "expectedSafeToSummarize": false
+  },
+  {
+    "id": "sparse-page",
+    "file": "sparse-page.html",
+    "title": "Sign in",
+    "url": "https://example.com/login",
+    "lang": "en",
+    "textContent": "Please sign in to continue.",
+    "expectedPageType": "sparsePage",
+    "expectedSafeToSummarize": false
   }
 ]

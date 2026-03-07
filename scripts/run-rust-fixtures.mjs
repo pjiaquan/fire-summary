@@ -112,41 +112,62 @@ async function main() {
 
   for (const fixture of fixtures) {
     const input = buildArticleInput(fixture);
-    const classification = classify_page(input);
-    const extraction = extract_article_blocks(input);
-    const processedArticle = process_article(input);
     const failures = [];
 
-    if (fixture.expectedPageType && classification.pageType !== fixture.expectedPageType) {
-      failures.push(
-        `expected pageType=${fixture.expectedPageType}, got ${classification.pageType}`
-      );
-    }
+    try {
+      const classification = classify_page(input);
+      const extraction = extract_article_blocks(input);
+      const processedArticle = process_article(input);
 
-    if (
-      typeof fixture.expectedSafeToSummarize === "boolean" &&
-      classification.safeToSummarize !== fixture.expectedSafeToSummarize
-    ) {
-      failures.push(
-        `expected safeToSummarize=${fixture.expectedSafeToSummarize}, got ${classification.safeToSummarize}`
-      );
-    }
+      if (fixture.expectedPageType && classification.pageType !== fixture.expectedPageType) {
+        failures.push(
+          `expected pageType=${fixture.expectedPageType}, got ${classification.pageType}`
+        );
+      }
 
-    reports.push({
-      id: fixture.id,
-      title: fixture.title || fixture.id,
-      pageType: classification.pageType,
-      confidence: classification.confidence,
-      safeToSummarize: classification.safeToSummarize,
-      warnings: Array.isArray(classification.warnings) ? classification.warnings : [],
-      source: extraction.source,
-      blockCount: extraction.blocks?.length || 0,
-      cleanedChars: processedArticle.stats?.cleaned_chars || 0,
-      promptTokens: processedArticle.stats?.prompt_tokens || 0,
-      selectionStrategy: processedArticle.promptPayload?.selectionStrategy || "",
-      topBlocks: summarizeTopBlocks(processedArticle),
-      failures,
-    });
+      if (
+        typeof fixture.expectedSafeToSummarize === "boolean" &&
+        classification.safeToSummarize !== fixture.expectedSafeToSummarize
+      ) {
+        failures.push(
+          `expected safeToSummarize=${fixture.expectedSafeToSummarize}, got ${classification.safeToSummarize}`
+        );
+      }
+
+      reports.push({
+        id: fixture.id,
+        title: fixture.title || fixture.id,
+        pageType: classification.pageType,
+        confidence: classification.confidence,
+        safeToSummarize: classification.safeToSummarize,
+        warnings: Array.isArray(classification.warnings) ? classification.warnings : [],
+        source: extraction.source,
+        blockCount: extraction.blocks?.length || 0,
+        cleanedChars: processedArticle.stats?.cleaned_chars || 0,
+        promptTokens: processedArticle.stats?.prompt_tokens || 0,
+        selectionStrategy: processedArticle.promptPayload?.selectionStrategy || "",
+        topBlocks: summarizeTopBlocks(processedArticle),
+        failures,
+      });
+    } catch (error) {
+      reports.push({
+        id: fixture.id,
+        title: fixture.title || fixture.id,
+        pageType: "error",
+        confidence: null,
+        safeToSummarize: false,
+        warnings: [],
+        source: "-",
+        blockCount: 0,
+        cleanedChars: 0,
+        promptTokens: 0,
+        selectionStrategy: "",
+        topBlocks: [],
+        failures: [
+          error instanceof Error ? error.message : String(error),
+        ],
+      });
+    }
   }
 
   console.log("Rust Core v2 fixture regression report");
