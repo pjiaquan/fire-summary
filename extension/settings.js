@@ -187,6 +187,47 @@ const WORLD_LANGUAGES = [
   "Yorùbá",
   "isiZulu",
 ];
+const LANGUAGE_SEARCH_ALIASES = {
+  "简体中文": ["zh", "zhcn", "zhhans", "cn", "chinese", "mandarin", "simplifiedchinese", "简中", "简体", "中文"],
+  "繁體中文": [
+    "zh",
+    "zhtw",
+    "zhhant",
+    "tw",
+    "traditionalchinese",
+    "traditional",
+    "繁中",
+    "繁體",
+    "中文",
+  ],
+  English: ["en", "eng", "english"],
+  日本語: ["ja", "jp", "japanese", "nihongo"],
+  "한국어": ["ko", "kr", "korean", "hangul"],
+  Français: ["fr", "french", "francais"],
+  Deutsch: ["de", "german", "deutsch"],
+  Español: ["es", "spanish", "espanol"],
+  Italiano: ["it", "italian"],
+  Português: ["pt", "portuguese", "portugues", "ptbr", "ptpt"],
+  Русский: ["ru", "russian"],
+  العربية: ["ar", "arabic"],
+  हिन्दी: ["hi", "hindi"],
+  "Bahasa Indonesia": ["id", "indonesian", "bahasa"],
+  "Bahasa Melayu": ["ms", "malay"],
+  Türkçe: ["tr", "turkish"],
+  "Tiếng Việt": ["vi", "vietnamese"],
+  ไทย: ["th", "thai"],
+  Polski: ["pl", "polish"],
+  Nederlands: ["nl", "dutch"],
+  Svenska: ["sv", "swedish"],
+  Dansk: ["da", "danish"],
+  Norsk: ["no", "norwegian"],
+  Suomi: ["fi", "finnish"],
+  Čeština: ["cs", "czech"],
+  Ελληνικά: ["el", "greek"],
+  Română: ["ro", "romanian"],
+  Українська: ["uk", "ukrainian"],
+  עברית: ["he", "hebrew"],
+};
 
 function setSaveStatus(message) {
   saveStatus.textContent = message;
@@ -202,12 +243,21 @@ function escapeHtml(text) {
 }
 
 function normalizeSearchText(text) {
-  return String(text || "").trim().toLocaleLowerCase();
+  return String(text || "")
+    .trim()
+    .toLocaleLowerCase()
+    .normalize("NFKD")
+    .replace(/[\s\-_()]+/g, "");
 }
 
 function setTargetLanguageDropdownOpen(isOpen) {
   targetLanguageCombobox.classList.toggle("open", isOpen);
   targetLanguageInput.setAttribute("aria-expanded", String(isOpen));
+}
+
+function getLanguageSearchTerms(language) {
+  const terms = [language, ...(LANGUAGE_SEARCH_ALIASES[language] || [])];
+  return terms.map((term) => normalizeSearchText(term)).filter(Boolean);
 }
 
 function getFilteredLanguages(query) {
@@ -216,9 +266,72 @@ function getFilteredLanguages(query) {
     return WORLD_LANGUAGES;
   }
 
-  return WORLD_LANGUAGES.filter((language) =>
-    normalizeSearchText(language).includes(normalizedQuery)
-  );
+  const matches = [];
+  for (const language of WORLD_LANGUAGES) {
+    const searchTerms = getLanguageSearchTerms(language);
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let termIndex = 0; termIndex < searchTerms.length; termIndex += 1) {
+      const normalizedTerm = searchTerms[termIndex];
+      if (!normalizedTerm) {
+        continue;
+      }
+
+      if (normalizedTerm === normalizedQuery) {
+        bestScore = Math.min(bestScore, termIndex === 0 ? 0 : 1);
+        continue;
+      }
+
+      if (normalizedTerm.startsWith(normalizedQuery)) {
+        bestScore = Math.min(bestScore, (termIndex === 0 ? 10 : 20) + normalizedTerm.length);
+        continue;
+      }
+
+      const substringIndex = normalizedTerm.indexOf(normalizedQuery);
+      if (substringIndex !== -1) {
+        bestScore = Math.min(bestScore, (termIndex === 0 ? 100 : 140) + substringIndex);
+        continue;
+      }
+
+      let queryIndex = 0;
+      let gapPenalty = 0;
+      let lastMatchedIndex = -1;
+      let startIndex = -1;
+
+      for (let languageIndex = 0; languageIndex < normalizedTerm.length; languageIndex += 1) {
+        if (normalizedTerm[languageIndex] !== normalizedQuery[queryIndex]) {
+          continue;
+        }
+
+        if (startIndex === -1) {
+          startIndex = languageIndex;
+        }
+        if (lastMatchedIndex !== -1) {
+          gapPenalty += languageIndex - lastMatchedIndex - 1;
+        }
+        lastMatchedIndex = languageIndex;
+        queryIndex += 1;
+        if (queryIndex === normalizedQuery.length) {
+          break;
+        }
+      }
+
+      if (queryIndex === normalizedQuery.length) {
+        bestScore = Math.min(bestScore, (termIndex === 0 ? 1000 : 1100) + startIndex + gapPenalty);
+      }
+    }
+
+    if (Number.isFinite(bestScore)) {
+      matches.push({
+        language,
+        score: bestScore,
+      });
+    }
+  }
+
+  return matches
+    .sort((left, right) => left.score - right.score || left.language.localeCompare(right.language))
+    .map((match) => match.language);
 }
 
 function renderTargetLanguageOptions(query = "") {

@@ -5,7 +5,8 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 CHROME_DIR="${REPO_ROOT}/build/chrome-extension"
-FIREFOX_DIR="${REPO_ROOT}/build/firefox-extension"
+FIREFOX_DESKTOP_DIR="${REPO_ROOT}/build/firefox-desktop-extension"
+FIREFOX_ANDROID_DIR="${REPO_ROOT}/build/firefox-android-extension"
 DIST_DIR="${REPO_ROOT}/dist"
 
 require_command() {
@@ -44,9 +45,14 @@ rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}"
 
 CHROME_ZIP="${DIST_DIR}/fire-summary-chrome-v${VERSION}.zip"
-FIREFOX_ZIP="${DIST_DIR}/fire-summary-firefox-v${VERSION}.zip"
+FIREFOX_DESKTOP_ZIP="${DIST_DIR}/fire-summary-firefox-desktop-v${VERSION}.zip"
+FIREFOX_ANDROID_ZIP="${DIST_DIR}/fire-summary-firefox-android-v${VERSION}.zip"
 
 create_zip "${CHROME_DIR}" "${CHROME_ZIP}"
-create_zip "${FIREFOX_DIR}" "${FIREFOX_ZIP}"
+create_zip "${FIREFOX_DESKTOP_DIR}" "${FIREFOX_DESKTOP_ZIP}"
+create_zip "${FIREFOX_ANDROID_DIR}" "${FIREFOX_ANDROID_ZIP}"
 
-printf 'Created release packages:\n- %s\n- %s\n' "${CHROME_ZIP}" "${FIREFOX_ZIP}"
+printf 'Created release packages:\n- %s\n- %s\n- %s\n' \
+  "${CHROME_ZIP}" \
+  "${FIREFOX_DESKTOP_ZIP}" \
+  "${FIREFOX_ANDROID_ZIP}"

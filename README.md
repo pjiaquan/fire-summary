@@ -3,12 +3,13 @@
 ![Fire Summary logo](logo.png)
 
 這個 repo 現在包含一份共用的 extension 來源，並直接使用目前的 Rust/Wasm crate 做摘要。
-Chrome 與 Firefox 共用同一份來源，Firefox 版本會在 build/release 時自動產生。
+Chrome 與 Firefox 共用同一份來源，Firefox Desktop / Android 版本會在 build/release 時自動產生。
 
 ## 結構
 
 - `extension/manifest.json`: Chrome 用的 Manifest V3 設定
-- `extension/manifest.firefox.json`: Firefox 用的 Manifest V2 模板
+- `extension/manifest.firefox.desktop.json`: Firefox Desktop 用的 Manifest V2 模板，保留快捷鍵
+- `extension/manifest.firefox.android.json`: Firefox Android 用的 Manifest V2 模板，不含快捷鍵
 - `extension/content-script.js`: 從目前頁面擷取標題、文字與備援 HTML
 - `extension/popup.*`: 最小 popup UI，呼叫 wasm 摘要函式
 - `scripts/build-extension.sh`: 產生 wasm 與可載入的 Chrome/Firefox build 目錄
@@ -25,7 +26,8 @@ bash scripts/build-extension.sh
 同時也會建立：
 
 - `build/chrome-extension/`
-- `build/firefox-extension/`
+- `build/firefox-desktop-extension/`
+- `build/firefox-android-extension/`
 
 ## Package Release
 
@@ -38,7 +40,8 @@ bash scripts/package-extension.sh
 這會先重新 build wasm，然後輸出：
 
 - `dist/fire-summary-chrome-v<version>.zip`
-- `dist/fire-summary-firefox-v<version>.zip`
+- `dist/fire-summary-firefox-desktop-v<version>.zip`
+- `dist/fire-summary-firefox-android-v<version>.zip`
 
 如果要另外產出 Firefox reviewer 用的 source code zip，在 repo 根目錄執行：
 
@@ -101,11 +104,17 @@ node scripts/render-store-screenshots.mjs
 3. 選 `Load unpacked`
 4. 指到這個 repo 的 `build/chrome-extension/`
 
-## 載入到 Firefox
+## 載入到 Firefox Desktop
 
 1. 開啟 `about:debugging#/runtime/this-firefox`
 2. 選 `Load Temporary Add-on...`
-3. 選擇 `build/firefox-extension/manifest.json`
+3. 選擇 `build/firefox-desktop-extension/manifest.json`
+
+## 載入到 Firefox Android
+
+1. 開啟 `about:debugging#/runtime/this-firefox`
+2. 選 `Load Temporary Add-on...`
+3. 選擇 `build/firefox-android-extension/manifest.json`
 
 ## Troubleshooting
 
@@ -117,7 +126,7 @@ Firefox 對未簽名的本地 extension，常會用很模糊的 `This add-on cou
 
 1. 開 `about:debugging#/runtime/this-firefox`
 2. 按 `Load Temporary Add-on...`
-3. 選 `build/firefox-extension/manifest.json`
+3. 選 `build/firefox-desktop-extension/manifest.json` 或 `build/firefox-android-extension/manifest.json`
 
 如果你是直接把壓縮檔拖進 Firefox，Release 版通常會因為未簽名而拒絕，訊息看起來就像「corrupt」。
 
