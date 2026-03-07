@@ -42,6 +42,7 @@ Repo 已包含 GitHub Actions release workflow：
 
 - 推送 tag，例如 `v0.1.0`，會自動 build、打包、建立 GitHub Release 並上傳 zip
 - 也可從 Actions 頁面手動執行 `Release` workflow，並填入 `release_tag`
+- 也可執行 `Cut Release` workflow，自動把版本加一、commit、tag、push，然後觸發正式 release
 
 建議流程：
 
@@ -49,6 +50,19 @@ Repo 已包含 GitHub Actions release workflow：
 git tag v0.1.0
 git push origin v0.1.0
 ```
+
+如果你要在本機手動調整版本，也可以用：
+
+```bash
+bash scripts/bump-version.sh patch
+```
+
+支援：
+
+- `patch`
+- `minor`
+- `major`
+- 或直接指定版本，例如 `1.2.3`
 
 ## Privacy
 

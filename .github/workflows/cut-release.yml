@@ -1,0 +1,58 @@
+name: Cut Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "Semantic version bump type"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  cut-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git author
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Bump version
+        id: bump
+        shell: bash
+        run: |
+          next_version="$(bash scripts/bump-version.sh "${{ inputs.bump }}" --print-only)"
+          bash scripts/bump-version.sh "${next_version}"
+          echo "version=${next_version}" >>"${GITHUB_OUTPUT}"
+          echo "tag=v${next_version}" >>"${GITHUB_OUTPUT}"
+
+      - name: Commit version update
+        shell: bash
+        run: |
+          git add Cargo.toml extension/manifest.json extension-firefox/manifest.json
+          git commit -m "Release v${{ steps.bump.outputs.version }}"
+
+      - name: Push release commit
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: git push origin HEAD:main
+
+      - name: Create and push release tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          git tag "${{ steps.bump.outputs.tag }}"
+          git push origin "${{ steps.bump.outputs.tag }}"
