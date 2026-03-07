@@ -204,7 +204,21 @@ node scripts/snapshot-rust-fixture-baseline.mjs
 
 之後 `bash scripts/run-rust-fixtures.sh` 就會自動把最新 report 和
 `fixtures/rust-core-v2/baseline.json` 做比對，抓出明顯的 confidence / block count /
-cleaned chars / prompt tokens 退步。
+cleaned chars / prompt tokens 退步，也會檢查 `selectionStrategy` 變化與 top ranked
+block overlap。
+
+如果某個 fixture 本來就比較不穩定，也可以在
+`fixtures/rust-core-v2/manifest.json` 裡加 `compare` 欄位覆寫 baseline 閾值，例如：
+
+```json
+{
+  "id": "search-results",
+  "compare": {
+    "confidenceDrop": 0.15,
+    "topBlockOverlapRatio": 0.2
+  }
+}
+```
 
 ## 目前行為
 

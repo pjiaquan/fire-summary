@@ -29,6 +29,11 @@ async function main() {
 
     lines.push(`## ${item.id}`);
     lines.push("");
+    if (item.thresholds) {
+      lines.push(
+        `- Thresholds: confidenceDrop=${item.thresholds.confidenceDrop}, blockCountDrop=${item.thresholds.blockCountDrop}, cleanedCharsDrop=${item.thresholds.cleanedCharsDrop}, promptTokensIncrease=${item.thresholds.promptTokensIncrease}, topBlockOverlapRatio=${item.thresholds.topBlockOverlapRatio}`
+      );
+    }
 
     for (const regression of item.regressions) {
       lines.push(`- REGRESSION: ${regression}`);

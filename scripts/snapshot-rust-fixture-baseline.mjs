@@ -25,6 +25,9 @@ async function main() {
       cleanedChars: item.cleanedChars,
       promptTokens: item.promptTokens,
       selectionStrategy: item.selectionStrategy,
+      topBlockIds: Array.isArray(item.topBlocks)
+        ? item.topBlocks.map((block) => block.id).filter(Boolean)
+        : [],
     })),
   };
 

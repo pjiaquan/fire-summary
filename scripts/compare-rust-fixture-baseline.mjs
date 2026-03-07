@@ -14,6 +14,7 @@ const THRESHOLDS = {
   blockCountDrop: 1,
   cleanedCharsDrop: 120,
   promptTokensIncrease: 200,
+  topBlockOverlapRatio: 0.34,
 };
 
 async function readJson(filePath) {
@@ -25,12 +26,39 @@ function formatNumber(value, digits = 2) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "-";
 }
 
-function compareFixture(report, baseline) {
+function resolveThresholds(compareConfig) {
+  return {
+    confidenceDrop: Number.isFinite(compareConfig?.confidenceDrop)
+      ? Number(compareConfig.confidenceDrop)
+      : THRESHOLDS.confidenceDrop,
+    blockCountDrop: Number.isFinite(compareConfig?.blockCountDrop)
+      ? Number(compareConfig.blockCountDrop)
+      : THRESHOLDS.blockCountDrop,
+    cleanedCharsDrop: Number.isFinite(compareConfig?.cleanedCharsDrop)
+      ? Number(compareConfig.cleanedCharsDrop)
+      : THRESHOLDS.cleanedCharsDrop,
+    promptTokensIncrease: Number.isFinite(compareConfig?.promptTokensIncrease)
+      ? Number(compareConfig.promptTokensIncrease)
+      : THRESHOLDS.promptTokensIncrease,
+    topBlockOverlapRatio: Number.isFinite(compareConfig?.topBlockOverlapRatio)
+      ? Number(compareConfig.topBlockOverlapRatio)
+      : THRESHOLDS.topBlockOverlapRatio,
+  };
+}
+
+function compareFixture(report, baseline, compareConfig) {
   const regressions = [];
   const notices = [];
+  const thresholds = resolveThresholds(compareConfig);
 
   if (baseline.pageType && report.pageType !== baseline.pageType) {
     regressions.push(`pageType changed from ${baseline.pageType} to ${report.pageType}`);
+  }
+
+  if (baseline.selectionStrategy && report.selectionStrategy !== baseline.selectionStrategy) {
+    notices.push(
+      `selectionStrategy changed from ${baseline.selectionStrategy} to ${report.selectionStrategy}`
+    );
   }
 
   if (
@@ -43,7 +71,7 @@ function compareFixture(report, baseline) {
   }
 
   const confidenceDrop = Number(baseline.confidence || 0) - Number(report.confidence || 0);
-  if (confidenceDrop > THRESHOLDS.confidenceDrop) {
+  if (confidenceDrop > thresholds.confidenceDrop) {
     regressions.push(
       `confidence dropped by ${formatNumber(confidenceDrop)} (${formatNumber(
         baseline.confidence
@@ -58,14 +86,14 @@ function compareFixture(report, baseline) {
   }
 
   const blockCountDrop = Number(baseline.blockCount || 0) - Number(report.blockCount || 0);
-  if (blockCountDrop > THRESHOLDS.blockCountDrop) {
+  if (blockCountDrop > thresholds.blockCountDrop) {
     regressions.push(
       `blockCount dropped by ${blockCountDrop} (${baseline.blockCount} -> ${report.blockCount})`
     );
   }
 
   const cleanedCharsDrop = Number(baseline.cleanedChars || 0) - Number(report.cleanedChars || 0);
-  if (cleanedCharsDrop > THRESHOLDS.cleanedCharsDrop) {
+  if (cleanedCharsDrop > thresholds.cleanedCharsDrop) {
     regressions.push(
       `cleanedChars dropped by ${cleanedCharsDrop} (${baseline.cleanedChars} -> ${report.cleanedChars})`
     );
@@ -73,7 +101,7 @@ function compareFixture(report, baseline) {
 
   const promptTokensIncrease =
     Number(report.promptTokens || 0) - Number(baseline.promptTokens || 0);
-  if (promptTokensIncrease > THRESHOLDS.promptTokensIncrease) {
+  if (promptTokensIncrease > thresholds.promptTokensIncrease) {
     regressions.push(
       `promptTokens increased by ${promptTokensIncrease} (${baseline.promptTokens} -> ${report.promptTokens})`
     );
@@ -83,6 +111,26 @@ function compareFixture(report, baseline) {
     );
   }
 
+  const baselineTopBlockIds = Array.isArray(baseline.topBlockIds) ? baseline.topBlockIds : [];
+  const reportTopBlockIds = Array.isArray(report.topBlocks)
+    ? report.topBlocks.map((block) => block.id).filter(Boolean)
+    : [];
+
+  if (baselineTopBlockIds.length > 0 && reportTopBlockIds.length > 0) {
+    const overlapCount = baselineTopBlockIds.filter((id) => reportTopBlockIds.includes(id)).length;
+    const overlapRatio = overlapCount / baselineTopBlockIds.length;
+
+    if (overlapRatio < thresholds.topBlockOverlapRatio) {
+      regressions.push(
+        `topBlock overlap dropped to ${formatNumber(overlapRatio)} (${overlapCount}/${baselineTopBlockIds.length})`
+      );
+    } else if (overlapRatio < 0.67) {
+      notices.push(
+        `topBlock overlap softened to ${formatNumber(overlapRatio)} (${overlapCount}/${baselineTopBlockIds.length})`
+      );
+    }
+  }
+
   return {
     id: report.id,
     title: report.title,
@@ -90,6 +138,7 @@ function compareFixture(report, baseline) {
     baselinePageType: baseline.pageType,
     regressions,
     notices,
+    thresholds,
     report,
     baseline,
   };
@@ -98,13 +147,21 @@ function compareFixture(report, baseline) {
 async function main() {
   const reportPayload = await readJson(REPORT_PATH);
   const baselinePayload = await readJson(BASELINE_PATH);
+  const manifestPayload = await readJson(path.join(REPO_ROOT, "fixtures", "rust-core-v2", "manifest.json"));
   const reportMap = new Map((reportPayload.reports || []).map((report) => [report.id, report]));
   const baselineEntries = Array.isArray(baselinePayload.fixtures)
     ? baselinePayload.fixtures
     : [];
+  const compareConfigMap = new Map(
+    (Array.isArray(manifestPayload) ? manifestPayload : []).map((fixture) => [
+      fixture?.id,
+      fixture?.compare || null,
+    ])
+  );
 
   const comparisons = baselineEntries.map((baseline) => {
     const report = reportMap.get(baseline.id);
+    const compareConfig = compareConfigMap.get(baseline.id) || null;
     if (!report) {
       return {
         id: baseline.id,
@@ -113,12 +170,13 @@ async function main() {
         baselinePageType: baseline.pageType,
         regressions: ["fixture missing from latest report"],
         notices: [],
+        thresholds: resolveThresholds(compareConfig),
         report: null,
         baseline,
       };
     }
 
-    return compareFixture(report, baseline);
+    return compareFixture(report, baseline, compareConfig);
   });
 
   const summary = {

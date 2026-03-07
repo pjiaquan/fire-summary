@@ -1,6 +1,6 @@
 {
-  "generatedAt": "2026-03-07T12:56:51.304Z",
-  "sourceReportGeneratedAt": "2026-03-07T12:55:10.554Z",
+  "generatedAt": "2026-03-07T12:59:32.226Z",
+  "sourceReportGeneratedAt": "2026-03-07T12:57:48.184Z",
   "fixtureCount": 11,
   "fixtures": [
     {
@@ -12,7 +12,12 @@
       "blockCount": 5,
       "cleanedChars": 353,
       "promptTokens": 103,
-      "selectionStrategy": "ranked-blocks-diverse-sections"
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-3",
+        "block-2",
+        "block-5"
+      ]
     },
     {
       "id": "long-form-blog",
@@ -23,7 +28,12 @@
       "blockCount": 8,
       "cleanedChars": 906,
       "promptTokens": 223,
-      "selectionStrategy": "ranked-blocks-diverse-sections"
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-2",
+        "block-3",
+        "block-5"
+      ]
     },
     {
       "id": "search-results",
@@ -34,7 +44,12 @@
       "blockCount": 4,
       "cleanedChars": 381,
       "promptTokens": 123,
-      "selectionStrategy": "ranked-blocks-diverse-sections"
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-1",
+        "block-4",
+        "block-3"
+      ]
     },
     {
       "id": "docs-page",
@@ -45,7 +60,12 @@
       "blockCount": 7,
       "cleanedChars": 423,
       "promptTokens": 152,
-      "selectionStrategy": "ranked-blocks-diverse-sections"
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-2",
+        "block-4",
+        "block-6"
+      ]
     },
     {
       "id": "mixed-language",
@@ -56,7 +76,12 @@
       "blockCount": 5,
       "cleanedChars": 338,
       "promptTokens": 137,
-      "selectionStrategy": "ranked-blocks-diverse-sections"
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-2",
+        "block-3",
+        "block-5"
+      ]
     },
     {
       "id": "noisy-portal",
@@ -67,7 +92,11 @@
       "blockCount": 2,
       "cleanedChars": 96,
       "promptTokens": 86,
-      "selectionStrategy": "ranked-blocks-diverse-sections"
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-1",
+        "block-2"
+      ]
     },
     {
       "id": "listing-page",
@@ -78,7 +107,12 @@
       "blockCount": 4,
       "cleanedChars": 191,
       "promptTokens": 103,
-      "selectionStrategy": "ranked-blocks-diverse-sections"
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-1",
+        "block-2",
+        "block-3"
+      ]
     },
     {
       "id": "product-page",
@@ -89,7 +123,12 @@
       "blockCount": 5,
       "cleanedChars": 292,
       "promptTokens": 110,
-      "selectionStrategy": "ranked-blocks"
+      "selectionStrategy": "ranked-blocks",
+      "topBlockIds": [
+        "block-4",
+        "block-2",
+        "block-3"
+      ]
     },
     {
       "id": "discussion-thread",
@@ -100,7 +139,12 @@
       "blockCount": 4,
       "cleanedChars": 324,
       "promptTokens": 115,
-      "selectionStrategy": "ranked-blocks-diverse-sections"
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-1",
+        "block-2",
+        "block-3"
+      ]
     },
     {
       "id": "paywalled-page",
@@ -111,7 +155,10 @@
       "blockCount": 1,
       "cleanedChars": 247,
       "promptTokens": 107,
-      "selectionStrategy": "ranked-blocks"
+      "selectionStrategy": "ranked-blocks",
+      "topBlockIds": [
+        "block-1"
+      ]
     },
     {
       "id": "sparse-page",
@@ -122,7 +169,10 @@
       "blockCount": 1,
       "cleanedChars": 27,
       "promptTokens": 67,
-      "selectionStrategy": "ranked-blocks"
+      "selectionStrategy": "ranked-blocks",
+      "topBlockIds": [
+        "block-1"
+      ]
     }
   ]
 }
