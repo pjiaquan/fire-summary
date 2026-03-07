@@ -158,6 +158,17 @@ Diagnostics 頁會顯示：
 - `extract_article_blocks(...)`
 - `process_article(...)`
 
+如果你從 Diagnostics 複製了 fixture 草稿，也可以直接匯入成新的 regression fixture：
+
+```bash
+node scripts/import-rust-fixture.mjs /path/to/draft.json
+```
+
+這會：
+
+- 寫入 `fixtures/rust-core-v2/<id>.html`
+- 自動更新 `fixtures/rust-core-v2/manifest.json`
+
 ## Rust Fixture Regression
 
 如果你要批次檢查 Rust Core v2 的抽取與分類規則，可以執行：
