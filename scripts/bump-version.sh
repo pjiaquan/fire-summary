@@ -63,6 +63,12 @@ replace_version_in_file() {
   perl -0pi -e "s/${pattern}/${replacement}/g" "${file_path}"
 }
 
+replace_cargo_package_version() {
+  local file_path="$1"
+  local next_version="$2"
+  perl -0pi -e 's/^version = "[^"]+"/version = "'"${next_version}"'"/m' "${file_path}"
+}
+
 CURRENT_VERSION="$(read_current_version)"
 if [[ -z "${CURRENT_VERSION}" ]]; then
   echo "Failed to read current version from Cargo.toml" >&2
@@ -81,7 +87,7 @@ if [[ "${PRINT_ONLY}" == "--print-only" ]]; then
   exit 0
 fi
 
-replace_version_in_file "Cargo.toml" 'version = "[^"]+"' "version = \"${NEXT_VERSION}\""
+replace_cargo_package_version "Cargo.toml" "${NEXT_VERSION}"
 replace_version_in_file "extension/manifest.json" '"version": "[^"]+"' "\"version\": \"${NEXT_VERSION}\""
 replace_version_in_file "extension/manifest.firefox.json" '"version": "[^"]+"' "\"version\": \"${NEXT_VERSION}\""
 
