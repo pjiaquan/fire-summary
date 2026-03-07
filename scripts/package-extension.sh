@@ -4,8 +4,8 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-CHROME_DIR="${REPO_ROOT}/extension"
-FIREFOX_DIR="${REPO_ROOT}/extension-firefox"
+CHROME_DIR="${REPO_ROOT}/build/chrome-extension"
+FIREFOX_DIR="${REPO_ROOT}/build/firefox-extension"
 DIST_DIR="${REPO_ROOT}/dist"
 
 require_command() {

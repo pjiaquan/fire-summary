@@ -2,26 +2,23 @@
 
 set -euo pipefail
 
-rm -rf extension/pkg
-wasm-pack build --target web --out-dir extension/pkg
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+EXTENSION_DIR="${REPO_ROOT}/extension"
 
-if command -v convert >/dev/null 2>&1 && [[ -f logo.png ]]; then
-  mkdir -p extension/icons
+rm -rf "${EXTENSION_DIR}/pkg"
+wasm-pack build --target web --out-dir "${EXTENSION_DIR}/pkg"
+
+if command -v convert >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/logo.png" ]]; then
+  mkdir -p "${EXTENSION_DIR}/icons"
   for size in 16 32 48 128; do
-    convert logo.png \
+    convert "${REPO_ROOT}/logo.png" \
       -background none \
       -gravity center \
       -resize "${size}x${size}" \
       -extent "${size}x${size}" \
-      "extension/icons/icon-${size}.png"
+      "${EXTENSION_DIR}/icons/icon-${size}.png"
   done
 fi
 
-rm -rf extension-firefox/pkg
-mkdir -p extension-firefox
-cp -R extension/pkg extension-firefox/pkg
-
-if [[ -d extension/icons ]]; then
-  rm -rf extension-firefox/icons
-  cp -R extension/icons extension-firefox/icons
-fi
+bash "${REPO_ROOT}/scripts/stage-extension-builds.sh"

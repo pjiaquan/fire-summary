@@ -83,6 +83,6 @@ fi
 
 replace_version_in_file "Cargo.toml" 'version = "[^"]+"' "version = \"${NEXT_VERSION}\""
 replace_version_in_file "extension/manifest.json" '"version": "[^"]+"' "\"version\": \"${NEXT_VERSION}\""
-replace_version_in_file "extension-firefox/manifest.json" '"version": "[^"]+"' "\"version\": \"${NEXT_VERSION}\""
+replace_version_in_file "extension/manifest.firefox.json" '"version": "[^"]+"' "\"version\": \"${NEXT_VERSION}\""
 
 printf 'Updated version: %s -> %s\n' "${CURRENT_VERSION}" "${NEXT_VERSION}"

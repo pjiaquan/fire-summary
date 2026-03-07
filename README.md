@@ -2,15 +2,16 @@
 
 ![Fire Summary logo](logo.png)
 
-這個 repo 現在包含兩份最小可跑的 extension 骨架，並直接使用目前的 Rust/Wasm crate 做摘要。
+這個 repo 現在包含一份共用的 extension 來源，並直接使用目前的 Rust/Wasm crate 做摘要。
+Chrome 與 Firefox 共用同一份來源，Firefox 版本會在 build/release 時自動產生。
 
 ## 結構
 
 - `extension/manifest.json`: Chrome 用的 Manifest V3 設定
-- `extension-firefox/manifest.json`: Firefox 用的保守版 Manifest V2 設定
+- `extension/manifest.firefox.json`: Firefox 用的 Manifest V2 模板
 - `extension/content-script.js`: 從目前頁面擷取標題、文字與備援 HTML
 - `extension/popup.*`: 最小 popup UI，呼叫 wasm 摘要函式
-- `scripts/build-extension.sh`: 產生 extension 會載入的 wasm glue code
+- `scripts/build-extension.sh`: 產生 wasm 與可載入的 Chrome/Firefox build 目錄
 
 ## Build
 
@@ -21,7 +22,10 @@ bash scripts/build-extension.sh
 ```
 
 這會把輸出放到 `extension/pkg/`。
-同時也會同步到 `extension-firefox/pkg/`。
+同時也會建立：
+
+- `build/chrome-extension/`
+- `build/firefox-extension/`
 
 ## Package Release
 
@@ -84,13 +88,13 @@ node scripts/render-store-screenshots.mjs
 1. 開啟 `chrome://extensions`
 2. 打開 Developer mode
 3. 選 `Load unpacked`
-4. 指到這個 repo 的 `extension/`
+4. 指到這個 repo 的 `build/chrome-extension/`
 
 ## 載入到 Firefox
 
 1. 開啟 `about:debugging#/runtime/this-firefox`
 2. 選 `Load Temporary Add-on...`
-3. 選擇 `extension-firefox/manifest.json`
+3. 選擇 `build/firefox-extension/manifest.json`
 
 ## Troubleshooting
 
@@ -102,7 +106,7 @@ Firefox 對未簽名的本地 extension，常會用很模糊的 `This add-on cou
 
 1. 開 `about:debugging#/runtime/this-firefox`
 2. 按 `Load Temporary Add-on...`
-3. 選 `extension-firefox/manifest.json`
+3. 選 `build/firefox-extension/manifest.json`
 
 如果你是直接把壓縮檔拖進 Firefox，Release 版通常會因為未簽名而拒絕，訊息看起來就像「corrupt」。
 
@@ -113,7 +117,7 @@ Chrome 要用 unpacked 模式載入資料夾，不是載入 repo 根目錄，也
 1. 開 `chrome://extensions`
 2. 打開 Developer mode
 3. 選 `Load unpacked`
-4. 指到 `extension/`
+4. 指到 `build/chrome-extension/`
 
 ## 目前行為
 
