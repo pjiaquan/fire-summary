@@ -1,11 +1,18 @@
 use scraper::{ElementRef, Html, Selector};
 use serde::{Deserialize, Serialize};
+use std::collections::{HashMap, HashSet};
 use wasm_bindgen::prelude::*;
 
 const MIN_BLOCK_CHARS: usize = 40;
+const MIN_LIST_ITEM_CHARS: usize = 20;
+const MIN_HEADING_CHARS: usize = 4;
+const MIN_SELECTION_CHARS: usize = 80;
 const DEFAULT_SUMMARY_SENTENCES: usize = 3;
 const DEFAULT_SUMMARY_CHARS: usize = 320;
+const DEFAULT_PROMPT_CHARS: usize = 3600;
 const MAX_SOURCE_CHARS: usize = 12_000;
+const MAX_PROMPT_CHARS: usize = 6000;
+const MAX_SUPPORTING_BLOCKS: usize = 6;
 const SENTENCE_SPLITTERS: [char; 8] = ['。', '！', '？', '.', '!', '?', ';', '；'];
 const IGNORED_TAGS: [&str; 11] = [
     "nav", "aside", "footer", "header", "script", "style", "noscript", "form", "button", "svg",
@@ -14,23 +21,44 @@ const IGNORED_TAGS: [&str; 11] = [
 
 #[derive(Debug, Deserialize)]
 pub struct ArticleInput {
+    pub url: Option<String>,
     pub title: Option<String>,
+    pub lang: Option<String>,
+    #[serde(alias = "metaDescription", alias = "excerpt")]
+    pub meta_description: Option<String>,
+    #[serde(alias = "canonicalUrl")]
+    pub canonical_url: Option<String>,
+    pub byline: Option<String>,
+    #[serde(alias = "publishedTime")]
+    pub published_time: Option<String>,
+    #[serde(alias = "selectionText")]
+    pub selection_text: Option<String>,
     #[serde(alias = "textContent", alias = "text")]
     pub text_content: Option<String>,
-    pub excerpt: Option<String>,
     pub html: Option<String>,
     pub max_sentences: Option<usize>,
     pub max_chars: Option<usize>,
+    #[serde(alias = "maxPromptChars")]
+    pub max_prompt_chars: Option<usize>,
 }
 
 #[derive(Debug, Serialize)]
-pub struct SummaryResult {
+pub struct ProcessedArticleResult {
     pub title: Option<String>,
+    #[serde(rename = "cleaned_text")]
     pub cleaned_text: String,
     pub summary: String,
     pub excerpt: Option<String>,
     pub source: String,
     pub stats: SummaryStats,
+    pub article: ArticleMetadata,
+    pub outline: Vec<OutlineNode>,
+    pub blocks: Vec<ArticleBlock>,
+    #[serde(rename = "rankedBlocks")]
+    pub ranked_blocks: Vec<RankedBlock>,
+    #[serde(rename = "promptPayload")]
+    pub prompt_payload: PromptPayload,
+    pub quality: QualityReport,
 }
 
 #[derive(Debug, Serialize)]
@@ -38,6 +66,91 @@ pub struct SummaryStats {
     pub cleaned_chars: usize,
     pub sentence_count: usize,
     pub selected_sentences: usize,
+    pub block_count: usize,
+    pub prompt_chars: usize,
+    pub estimated_tokens: usize,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleMetadata {
+    pub title: Option<String>,
+    pub url: Option<String>,
+    pub canonical_url: Option<String>,
+    pub excerpt: Option<String>,
+    pub byline: Option<String>,
+    pub published_time: Option<String>,
+    pub language: Option<String>,
+    pub source: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ArticleBlock {
+    pub id: String,
+    pub kind: BlockKind,
+    pub text: String,
+    pub heading_path: Vec<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub heading_level: Option<u8>,
+    pub char_count: usize,
+    pub estimated_tokens: usize,
+    pub position: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum BlockKind {
+    Heading,
+    Paragraph,
+    ListItem,
+    Quote,
+    Code,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OutlineNode {
+    pub title: String,
+    pub level: u8,
+    pub block_id: String,
+    pub position: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RankedBlock {
+    pub block_id: String,
+    pub score: f64,
+    pub reasons: Vec<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptPayload {
+    pub article_header: String,
+    pub compressed_context: String,
+    pub key_points: Vec<String>,
+    pub supporting_blocks: Vec<String>,
+    pub token_budget_used: usize,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QualityReport {
+    pub page_type: PageType,
+    pub confidence: f64,
+    pub warnings: Vec<String>,
+    pub safe_to_summarize: bool,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub enum PageType {
+    Article,
+    Selection,
+    SparsePage,
+    GenericPage,
 }
 
 #[derive(Debug, Clone)]
@@ -45,6 +158,29 @@ struct SentenceCandidate {
     index: usize,
     text: String,
     score: f64,
+}
+
+struct ProcessingOutput {
+    title: Option<String>,
+    excerpt: Option<String>,
+    cleaned_text: String,
+    summary: String,
+    source: String,
+    stats: SummaryStats,
+    article: ArticleMetadata,
+    outline: Vec<OutlineNode>,
+    blocks: Vec<ArticleBlock>,
+    ranked_blocks: Vec<RankedBlock>,
+    prompt_payload: PromptPayload,
+    quality: QualityReport,
+}
+
+struct StructuredExtraction {
+    blocks: Vec<ArticleBlock>,
+    cleaned_text: String,
+    outline: Vec<OutlineNode>,
+    source: String,
+    quality: QualityReport,
 }
 
 #[wasm_bindgen]
@@ -76,75 +212,249 @@ pub fn extract_and_summarize(html: &str) -> String {
 
 #[wasm_bindgen]
 pub fn summarize_article(input: JsValue) -> Result<JsValue, JsValue> {
+    process_article(input)
+}
+
+#[wasm_bindgen]
+pub fn process_article(input: JsValue) -> Result<JsValue, JsValue> {
     let input: ArticleInput = serde_wasm_bindgen::from_value(input)
         .map_err(|err| JsValue::from_str(&format!("invalid input: {err}")))?;
 
-    let mut cleaned_text = normalize_text(input.text_content.unwrap_or_default().as_str());
-    let source = if !cleaned_text.is_empty() {
-        "readability".to_string()
-    } else if let Some(html) = input.html.as_deref() {
-        cleaned_text = extract_main_text_from_html(html);
-        "html-fallback".to_string()
-    } else {
-        "empty".to_string()
+    let processed = process_article_input(input).map_err(|err| JsValue::from_str(&err))?;
+    let result = ProcessedArticleResult {
+        title: processed.title,
+        cleaned_text: processed.cleaned_text,
+        summary: processed.summary,
+        excerpt: processed.excerpt,
+        source: processed.source,
+        stats: processed.stats,
+        article: processed.article,
+        outline: processed.outline,
+        blocks: processed.blocks,
+        ranked_blocks: processed.ranked_blocks,
+        prompt_payload: processed.prompt_payload,
+        quality: processed.quality,
     };
 
-    if cleaned_text.is_empty() {
-        return Err(JsValue::from_str("no usable article text"));
-    }
+    serde_wasm_bindgen::to_value(&result).map_err(|err| {
+        JsValue::from_str(&format!(
+            "failed to serialize processed article result: {err}"
+        ))
+    })
+}
 
+fn process_article_input(input: ArticleInput) -> Result<ProcessingOutput, String> {
     let max_sentences = input
         .max_sentences
         .unwrap_or(DEFAULT_SUMMARY_SENTENCES)
         .max(1);
     let max_chars = input.max_chars.unwrap_or(DEFAULT_SUMMARY_CHARS).max(120);
+    let max_prompt_chars = input
+        .max_prompt_chars
+        .unwrap_or(DEFAULT_PROMPT_CHARS)
+        .clamp(1200, MAX_PROMPT_CHARS);
+
+    let selection_text = normalize_optional(&input.selection_text);
+    let title = normalize_optional(&input.title);
+    let excerpt = normalize_optional(&input.meta_description);
+    let source_url = normalize_optional(&input.url);
+    let canonical_url = normalize_optional(&input.canonical_url).or_else(|| source_url.clone());
+    let byline = normalize_optional(&input.byline);
+    let published_time = normalize_optional(&input.published_time);
+    let language = normalize_optional(&input.lang);
+
+    let extracted = if let Some(selection) = selection_text.clone() {
+        if selection.chars().count() >= MIN_SELECTION_CHARS {
+            build_selection_extraction(&selection)
+        } else {
+            extract_from_page(&input.html, &input.text_content)
+        }
+    } else {
+        extract_from_page(&input.html, &input.text_content)
+    };
+
+    let extracted = extracted.ok_or_else(|| "no usable article text".to_string())?;
     let summary = build_summary(
-        input.title.as_deref(),
-        &cleaned_text,
-        input.excerpt.as_deref(),
+        title.as_deref(),
+        &extracted.cleaned_text,
+        excerpt.as_deref(),
         max_sentences,
         max_chars,
     );
-
+    let ranked_blocks = rank_blocks(&extracted.blocks, title.as_deref(), excerpt.as_deref());
+    let article = ArticleMetadata {
+        title: title.clone(),
+        url: source_url,
+        canonical_url,
+        excerpt: excerpt.clone(),
+        byline,
+        published_time,
+        language,
+        source: extracted.source.clone(),
+    };
+    let prompt_payload = build_prompt_payload(
+        &article,
+        &extracted.cleaned_text,
+        &summary,
+        &extracted.blocks,
+        &ranked_blocks,
+        max_prompt_chars,
+    );
     let stats = SummaryStats {
-        cleaned_chars: cleaned_text.chars().count(),
-        sentence_count: split_sentences(&cleaned_text).len(),
+        cleaned_chars: extracted.cleaned_text.chars().count(),
+        sentence_count: split_sentences(&extracted.cleaned_text).len(),
         selected_sentences: split_sentences(&summary).len(),
+        block_count: extracted.blocks.len(),
+        prompt_chars: prompt_payload.compressed_context.chars().count(),
+        estimated_tokens: estimate_tokens(&prompt_payload.compressed_context),
     };
 
-    let result = SummaryResult {
-        title: input.title,
-        cleaned_text,
+    Ok(ProcessingOutput {
+        title,
+        excerpt,
+        cleaned_text: extracted.cleaned_text,
         summary,
-        excerpt: input.excerpt,
-        source,
+        source: extracted.source,
         stats,
-    };
-
-    serde_wasm_bindgen::to_value(&result)
-        .map_err(|err| JsValue::from_str(&format!("failed to serialize summary result: {err}")))
+        article,
+        outline: extracted.outline,
+        blocks: extracted.blocks,
+        ranked_blocks,
+        prompt_payload,
+        quality: extracted.quality,
+    })
 }
 
-fn extract_main_text_from_html(html: &str) -> String {
-    let document = Html::parse_document(html);
-    let best_candidate = find_best_candidate(&document);
+fn build_selection_extraction(selection_text: &str) -> Option<StructuredExtraction> {
+    let mut blocks = Vec::new();
 
-    if let Some(candidate) = best_candidate {
-        let blocks = extract_blocks(candidate);
-        let normalized = normalize_blocks(blocks);
-        if !normalized.is_empty() {
-            return normalized;
+    for (index, paragraph) in selection_text
+        .split("\n\n")
+        .map(normalize_text)
+        .filter(|text| text.chars().count() >= MIN_BLOCK_CHARS)
+        .enumerate()
+    {
+        blocks.push(ArticleBlock {
+            id: format!("block-{}", index + 1),
+            kind: BlockKind::Paragraph,
+            text: paragraph.clone(),
+            heading_path: Vec::new(),
+            heading_level: None,
+            char_count: paragraph.chars().count(),
+            estimated_tokens: estimate_tokens(&paragraph),
+            position: index,
+        });
+    }
+
+    if blocks.is_empty() {
+        let normalized = normalize_text(selection_text);
+        if normalized.chars().count() < MIN_SELECTION_CHARS {
+            return None;
+        }
+
+        blocks.push(ArticleBlock {
+            id: "block-1".to_string(),
+            kind: BlockKind::Paragraph,
+            text: normalized.clone(),
+            heading_path: Vec::new(),
+            heading_level: None,
+            char_count: normalized.chars().count(),
+            estimated_tokens: estimate_tokens(&normalized),
+            position: 0,
+        });
+    }
+
+    let cleaned_text = join_block_text(&blocks);
+    let quality = QualityReport {
+        page_type: PageType::Selection,
+        confidence: 0.98,
+        warnings: Vec::new(),
+        safe_to_summarize: true,
+    };
+
+    Some(StructuredExtraction {
+        outline: build_outline(&blocks),
+        blocks,
+        cleaned_text,
+        source: "selection".to_string(),
+        quality,
+    })
+}
+
+fn extract_from_page(html: &Option<String>, text_content: &Option<String>) -> Option<StructuredExtraction> {
+    if let Some(html) = html.as_deref() {
+        if let Some(extracted) = extract_structured_from_html(html) {
+            return Some(extracted);
         }
     }
 
-    let fallback_selector =
-        Selector::parse("article, main, p, h1, h2, h3, li, blockquote").expect("valid selector");
-    let fallback_blocks = document
-        .select(&fallback_selector)
-        .filter(|element| !is_inside_ignored_context(*element))
-        .map(text_from_element)
-        .collect::<Vec<_>>();
-    normalize_blocks(fallback_blocks)
+    let cleaned_text = normalize_optional(text_content)?;
+    if cleaned_text.chars().count() < MIN_BLOCK_CHARS {
+        return None;
+    }
+
+    let block = ArticleBlock {
+        id: "block-1".to_string(),
+        kind: BlockKind::Paragraph,
+        text: cleaned_text.clone(),
+        heading_path: Vec::new(),
+        heading_level: None,
+        char_count: cleaned_text.chars().count(),
+        estimated_tokens: estimate_tokens(&cleaned_text),
+        position: 0,
+    };
+    let blocks = vec![block];
+    let quality = assess_quality(&blocks, &cleaned_text, "text-fallback");
+
+    Some(StructuredExtraction {
+        outline: Vec::new(),
+        blocks,
+        cleaned_text,
+        source: "text-fallback".to_string(),
+        quality,
+    })
+}
+
+fn extract_main_text_from_html(html: &str) -> String {
+    extract_structured_from_html(html)
+        .map(|extracted| extracted.cleaned_text)
+        .unwrap_or_default()
+}
+
+fn extract_structured_from_html(html: &str) -> Option<StructuredExtraction> {
+    let document = Html::parse_document(html);
+    let best_candidate = find_best_candidate(&document);
+
+    let mut blocks = if let Some(candidate) = best_candidate {
+        extract_structured_blocks(candidate)
+    } else {
+        Vec::new()
+    };
+    let source = if blocks.is_empty() {
+        "html-fallback"
+    } else {
+        "html-primary"
+    };
+
+    if blocks.is_empty() {
+        blocks = extract_fallback_blocks(&document);
+    }
+
+    let blocks = normalize_structured_blocks(blocks);
+    if blocks.is_empty() {
+        return None;
+    }
+
+    let cleaned_text = truncate_chars(&join_block_text(&blocks), MAX_SOURCE_CHARS);
+    let quality = assess_quality(&blocks, &cleaned_text, source);
+
+    Some(StructuredExtraction {
+        outline: build_outline(&blocks),
+        blocks,
+        cleaned_text,
+        source: source.to_string(),
+        quality,
+    })
 }
 
 fn find_best_candidate<'a>(document: &'a Html) -> Option<ElementRef<'a>> {
@@ -292,6 +602,429 @@ fn extract_blocks(element: ElementRef<'_>) -> Vec<String> {
     Vec::new()
 }
 
+fn extract_structured_blocks(element: ElementRef<'_>) -> Vec<ArticleBlock> {
+    let selector =
+        Selector::parse("h1, h2, h3, h4, p, li, blockquote, pre").expect("valid selector");
+    let mut blocks = Vec::new();
+    let mut seen = HashSet::new();
+    let mut heading_stack: Vec<(u8, String)> = Vec::new();
+    let mut position = 0usize;
+
+    for child in element.select(&selector) {
+        if is_inside_ignored_context(child) {
+            continue;
+        }
+
+        let text = text_from_element(child);
+        if text.is_empty() || is_probable_boilerplate(&text) {
+            continue;
+        }
+
+        let kind = block_kind_from_tag(child.value().name());
+        let min_chars = match kind {
+            BlockKind::Heading => MIN_HEADING_CHARS,
+            BlockKind::ListItem => MIN_LIST_ITEM_CHARS,
+            _ => MIN_BLOCK_CHARS,
+        };
+
+        if text.chars().count() < min_chars || !seen.insert(text.clone()) {
+            continue;
+        }
+
+        if !matches!(kind, BlockKind::Heading) && link_density(child) > 0.55 {
+            continue;
+        }
+
+        let heading_level = heading_level(child.value().name());
+        let heading_path = if let Some(level) = heading_level {
+            while heading_stack
+                .last()
+                .map(|(current_level, _)| *current_level >= level)
+                .unwrap_or(false)
+            {
+                heading_stack.pop();
+            }
+            heading_stack.push((level, text.clone()));
+            heading_stack.iter().map(|(_, title)| title.clone()).collect()
+        } else {
+            heading_stack.iter().map(|(_, title)| title.clone()).collect()
+        };
+
+        blocks.push(ArticleBlock {
+            id: format!("block-{}", position + 1),
+            kind,
+            text: text.clone(),
+            heading_path,
+            heading_level,
+            char_count: text.chars().count(),
+            estimated_tokens: estimate_tokens(&text),
+            position,
+        });
+        position += 1;
+    }
+
+    if !blocks.is_empty() {
+        return blocks;
+    }
+
+    let own_text = text_from_element(element);
+    if own_text.chars().count() < 180 {
+        return Vec::new();
+    }
+
+    vec![ArticleBlock {
+        id: "block-1".to_string(),
+        kind: BlockKind::Paragraph,
+        text: own_text.clone(),
+        heading_path: Vec::new(),
+        heading_level: None,
+        char_count: own_text.chars().count(),
+        estimated_tokens: estimate_tokens(&own_text),
+        position: 0,
+    }]
+}
+
+fn extract_fallback_blocks(document: &Html) -> Vec<ArticleBlock> {
+    let selector =
+        Selector::parse("article, main, p, h1, h2, h3, li, blockquote, pre").expect("valid selector");
+    let mut blocks = Vec::new();
+    let mut heading_stack: Vec<(u8, String)> = Vec::new();
+    let mut seen = HashSet::new();
+    let mut position = 0usize;
+
+    for child in document.select(&selector) {
+        if is_inside_ignored_context(child) {
+            continue;
+        }
+
+        let text = text_from_element(child);
+        if text.is_empty() || is_probable_boilerplate(&text) || !seen.insert(text.clone()) {
+            continue;
+        }
+
+        let kind = block_kind_from_tag(child.value().name());
+        let min_chars = match kind {
+            BlockKind::Heading => MIN_HEADING_CHARS,
+            BlockKind::ListItem => MIN_LIST_ITEM_CHARS,
+            _ => MIN_BLOCK_CHARS,
+        };
+        if text.chars().count() < min_chars {
+            continue;
+        }
+
+        let heading_level = heading_level(child.value().name());
+        let heading_path = if let Some(level) = heading_level {
+            while heading_stack
+                .last()
+                .map(|(current_level, _)| *current_level >= level)
+                .unwrap_or(false)
+            {
+                heading_stack.pop();
+            }
+            heading_stack.push((level, text.clone()));
+            heading_stack.iter().map(|(_, title)| title.clone()).collect()
+        } else {
+            heading_stack.iter().map(|(_, title)| title.clone()).collect()
+        };
+
+        blocks.push(ArticleBlock {
+            id: format!("block-{}", position + 1),
+            kind,
+            text: text.clone(),
+            heading_path,
+            heading_level,
+            char_count: text.chars().count(),
+            estimated_tokens: estimate_tokens(&text),
+            position,
+        });
+        position += 1;
+    }
+
+    blocks
+}
+
+fn normalize_structured_blocks(blocks: Vec<ArticleBlock>) -> Vec<ArticleBlock> {
+    let mut normalized = Vec::new();
+    let mut seen = HashSet::new();
+
+    for block in blocks {
+        let text = normalize_text(&block.text);
+        let min_chars = match block.kind {
+            BlockKind::Heading => MIN_HEADING_CHARS,
+            BlockKind::ListItem => MIN_LIST_ITEM_CHARS,
+            _ => MIN_BLOCK_CHARS,
+        };
+
+        if text.chars().count() < min_chars || !seen.insert(text.clone()) {
+            continue;
+        }
+
+        normalized.push(ArticleBlock {
+            text: text.clone(),
+            char_count: text.chars().count(),
+            estimated_tokens: estimate_tokens(&text),
+            ..block
+        });
+    }
+
+    normalized
+}
+
+fn build_outline(blocks: &[ArticleBlock]) -> Vec<OutlineNode> {
+    blocks
+        .iter()
+        .filter_map(|block| {
+            block.heading_level.map(|level| OutlineNode {
+                title: block.text.clone(),
+                level,
+                block_id: block.id.clone(),
+                position: block.position,
+            })
+        })
+        .collect()
+}
+
+fn rank_blocks(
+    blocks: &[ArticleBlock],
+    title: Option<&str>,
+    excerpt: Option<&str>,
+) -> Vec<RankedBlock> {
+    let content_blocks = blocks
+        .iter()
+        .filter(|block| !matches!(block.kind, BlockKind::Heading))
+        .collect::<Vec<_>>();
+    let frequencies = build_block_token_frequency(&content_blocks);
+    let title_tokens = title.map(tokenize).unwrap_or_default();
+    let excerpt_tokens = excerpt.map(tokenize).unwrap_or_default();
+
+    let mut ranked = content_blocks
+        .into_iter()
+        .filter_map(|block| {
+            let tokens = tokenize(&block.text);
+            if tokens.is_empty() {
+                return None;
+            }
+
+            let token_score = tokens
+                .iter()
+                .map(|token| *frequencies.get(token).unwrap_or(&0.0))
+                .sum::<f64>()
+                / tokens.len() as f64;
+            let title_overlap = overlap_score(&tokens, &title_tokens);
+            let excerpt_overlap = overlap_score(&tokens, &excerpt_tokens);
+            let position_bonus = 1.8 / (block.position as f64 + 1.0);
+            let heading_bonus = if block.heading_path.is_empty() { 0.0 } else { 0.9 };
+            let length_bonus = match block.char_count {
+                70..=280 => 0.8,
+                281..=500 => 0.45,
+                _ => 0.0,
+            };
+            let number_bonus = if block.text.chars().any(|ch| ch.is_ascii_digit()) {
+                0.2
+            } else {
+                0.0
+            };
+
+            let score = token_score
+                + title_overlap * 2.8
+                + excerpt_overlap * 2.1
+                + position_bonus
+                + heading_bonus
+                + length_bonus
+                + number_bonus;
+            let mut reasons = Vec::new();
+            if title_overlap > 0.0 {
+                reasons.push("title-overlap".to_string());
+            }
+            if excerpt_overlap > 0.0 {
+                reasons.push("excerpt-overlap".to_string());
+            }
+            if block.position <= 3 {
+                reasons.push("early-position".to_string());
+            }
+            if !block.heading_path.is_empty() {
+                reasons.push("section-context".to_string());
+            }
+
+            Some(RankedBlock {
+                block_id: block.id.clone(),
+                score,
+                reasons,
+            })
+        })
+        .collect::<Vec<_>>();
+
+    ranked.sort_by(|left, right| right.score.total_cmp(&left.score));
+    ranked
+}
+
+fn build_prompt_payload(
+    article: &ArticleMetadata,
+    cleaned_text: &str,
+    summary: &str,
+    blocks: &[ArticleBlock],
+    ranked_blocks: &[RankedBlock],
+    max_prompt_chars: usize,
+) -> PromptPayload {
+    let article_header = build_article_header(article);
+    let key_points = split_sentences(summary).into_iter().take(3).collect::<Vec<_>>();
+    let block_lookup = blocks
+        .iter()
+        .map(|block| (block.id.as_str(), block))
+        .collect::<HashMap<_, _>>();
+    let mut supporting_blocks = Vec::new();
+    let mut compressed_sections = Vec::new();
+    let mut used_chars = 0usize;
+
+    for ranked in ranked_blocks.iter().take(MAX_SUPPORTING_BLOCKS.saturating_mul(2)) {
+        let Some(block) = block_lookup.get(ranked.block_id.as_str()) else {
+            continue;
+        };
+
+        let block_text = format_block_for_prompt(block);
+        if supporting_blocks.contains(&block_text) {
+            continue;
+        }
+
+        let addition = if compressed_sections.is_empty() {
+            block_text.chars().count()
+        } else {
+            block_text.chars().count() + 2
+        };
+        if used_chars + addition > max_prompt_chars {
+            continue;
+        }
+
+        used_chars += addition;
+        supporting_blocks.push(block_text.clone());
+        compressed_sections.push(block_text);
+        if supporting_blocks.len() >= MAX_SUPPORTING_BLOCKS {
+            break;
+        }
+    }
+
+    let compressed_context = if compressed_sections.is_empty() {
+        truncate_chars(cleaned_text, max_prompt_chars)
+    } else {
+        compressed_sections.join("\n\n")
+    };
+    let token_budget_used =
+        estimate_tokens(&article_header) + estimate_tokens(&compressed_context);
+
+    PromptPayload {
+        article_header,
+        compressed_context,
+        key_points,
+        supporting_blocks,
+        token_budget_used,
+    }
+}
+
+fn build_article_header(article: &ArticleMetadata) -> String {
+    let mut lines = Vec::new();
+
+    if let Some(title) = article.title.as_deref() {
+        lines.push(format!("Title: {title}"));
+    }
+    if let Some(url) = article.canonical_url.as_deref().or(article.url.as_deref()) {
+        lines.push(format!("URL: {url}"));
+    }
+    if let Some(excerpt) = article.excerpt.as_deref() {
+        lines.push(format!("Excerpt: {excerpt}"));
+    }
+    if let Some(byline) = article.byline.as_deref() {
+        lines.push(format!("Byline: {byline}"));
+    }
+    if let Some(published_time) = article.published_time.as_deref() {
+        lines.push(format!("Published: {published_time}"));
+    }
+    if let Some(language) = article.language.as_deref() {
+        lines.push(format!("Language: {language}"));
+    }
+    lines.push(format!("Extraction source: {}", article.source));
+
+    lines.join("\n")
+}
+
+fn assess_quality(blocks: &[ArticleBlock], cleaned_text: &str, source: &str) -> QualityReport {
+    let mut warnings = Vec::new();
+    let cleaned_chars = cleaned_text.chars().count();
+    let content_blocks = blocks
+        .iter()
+        .filter(|block| !matches!(block.kind, BlockKind::Heading))
+        .count();
+    let avg_block_chars = if blocks.is_empty() {
+        0.0
+    } else {
+        blocks.iter().map(|block| block.char_count).sum::<usize>() as f64 / blocks.len() as f64
+    };
+
+    if cleaned_chars < 220 {
+        warnings.push("Extracted article text is short.".to_string());
+    }
+    if content_blocks < 2 {
+        warnings.push("Only a small number of content blocks were extracted.".to_string());
+    }
+    if avg_block_chars < 55.0 {
+        warnings.push("Block density is low and may indicate a non-article page.".to_string());
+    }
+
+    let (page_type, mut confidence): (PageType, f64) = if source == "selection" {
+        (PageType::Selection, 0.98)
+    } else if cleaned_chars < 180 {
+        (PageType::SparsePage, 0.32)
+    } else if content_blocks >= 3 && avg_block_chars >= 70.0 {
+        (PageType::Article, 0.84)
+    } else {
+        (PageType::GenericPage, 0.58)
+    };
+
+    if blocks.iter().any(|block| matches!(block.kind, BlockKind::Heading)) {
+        confidence += 0.08;
+    }
+    if !warnings.is_empty() {
+        confidence -= 0.08;
+    }
+
+    QualityReport {
+        page_type: page_type.clone(),
+        confidence: confidence.clamp(0.0, 0.99),
+        safe_to_summarize: matches!(page_type, PageType::Article | PageType::Selection)
+            || cleaned_chars >= 260,
+        warnings,
+    }
+}
+
+fn block_kind_from_tag(tag: &str) -> BlockKind {
+    match tag {
+        "h1" | "h2" | "h3" | "h4" => BlockKind::Heading,
+        "li" => BlockKind::ListItem,
+        "blockquote" => BlockKind::Quote,
+        "pre" => BlockKind::Code,
+        _ => BlockKind::Paragraph,
+    }
+}
+
+fn heading_level(tag: &str) -> Option<u8> {
+    match tag {
+        "h1" => Some(1),
+        "h2" => Some(2),
+        "h3" => Some(3),
+        "h4" => Some(4),
+        _ => None,
+    }
+}
+
+fn format_block_for_prompt(block: &ArticleBlock) -> String {
+    let path = if block.heading_path.is_empty() {
+        String::new()
+    } else {
+        format!("[{}]\n", block.heading_path.join(" > "))
+    };
+
+    format!("{path}{}", block.text)
+}
+
 fn is_inside_ignored_context(element: ElementRef<'_>) -> bool {
     element
         .ancestors()
@@ -320,20 +1053,22 @@ fn text_from_element(element: ElementRef<'_>) -> String {
     normalize_text(&element.text().collect::<Vec<_>>().join(" "))
 }
 
-fn normalize_blocks(blocks: Vec<String>) -> String {
-    let mut seen = std::collections::HashSet::new();
-    let mut cleaned = Vec::new();
+fn join_block_text(blocks: &[ArticleBlock]) -> String {
+    truncate_chars(
+        &blocks
+            .iter()
+            .map(|block| block.text.clone())
+            .collect::<Vec<_>>()
+            .join("\n\n"),
+        MAX_SOURCE_CHARS,
+    )
+}
 
-    for block in blocks.into_iter().map(|block| normalize_text(&block)) {
-        if block.chars().count() < MIN_BLOCK_CHARS {
-            continue;
-        }
-        if seen.insert(block.clone()) {
-            cleaned.push(block);
-        }
-    }
-
-    truncate_chars(&cleaned.join("\n\n"), MAX_SOURCE_CHARS)
+fn normalize_optional(value: &Option<String>) -> Option<String> {
+    value
+        .as_deref()
+        .map(normalize_text)
+        .filter(|text| !text.is_empty())
 }
 
 fn normalize_text(input: &str) -> String {
@@ -353,6 +1088,21 @@ fn normalize_text(input: &str) -> String {
     }
 
     result.trim().to_string()
+}
+
+fn is_probable_boilerplate(text: &str) -> bool {
+    let lower = text.to_ascii_lowercase();
+    [
+        "share this",
+        "related articles",
+        "all rights reserved",
+        "subscribe",
+        "sign in",
+        "cookie",
+        "privacy policy",
+    ]
+    .iter()
+    .any(|term| lower.contains(term))
 }
 
 fn build_summary(
@@ -467,11 +1217,23 @@ fn push_sentence(sentences: &mut Vec<String>, current: &mut String) {
     current.clear();
 }
 
-fn build_token_frequency(sentences: &[String]) -> std::collections::HashMap<String, f64> {
-    let mut frequency = std::collections::HashMap::new();
+fn build_token_frequency(sentences: &[String]) -> HashMap<String, f64> {
+    let mut frequency = HashMap::new();
 
     for sentence in sentences {
         for token in tokenize(sentence) {
+            *frequency.entry(token).or_insert(0.0) += 1.0;
+        }
+    }
+
+    frequency
+}
+
+fn build_block_token_frequency(blocks: &[&ArticleBlock]) -> HashMap<String, f64> {
+    let mut frequency = HashMap::new();
+
+    for block in blocks {
+        for token in tokenize(&block.text) {
             *frequency.entry(token).or_insert(0.0) += 1.0;
         }
     }
@@ -505,12 +1267,18 @@ fn tokenize(text: &str) -> Vec<String> {
     tokens
 }
 
+fn estimate_tokens(text: &str) -> usize {
+    let token_count = tokenize(text).len();
+    let char_estimate = text.chars().count().div_ceil(6);
+    token_count.max(char_estimate).max(1)
+}
+
 fn overlap_score(tokens: &[String], reference: &[String]) -> f64 {
     if tokens.is_empty() || reference.is_empty() {
         return 0.0;
     }
 
-    let reference = reference.iter().collect::<std::collections::HashSet<_>>();
+    let reference = reference.iter().collect::<HashSet<_>>();
     let overlap = tokens
         .iter()
         .filter(|token| reference.contains(token))
@@ -538,4 +1306,74 @@ fn is_cjk(ch: char) -> bool {
             | 0x30A0..=0x30FF
             | 0xAC00..=0xD7AF
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn process_article_prefers_html_blocks_and_builds_prompt_payload() {
+        let html = r#"
+        <html lang="en">
+          <body>
+            <article class="article-content">
+              <h1>Rust Core V2</h1>
+              <p>Fire Summary now extracts article blocks directly from HTML instead of relying on a flat body text fallback.</p>
+              <p>The new pipeline ranks paragraph blocks, preserves section context, and builds a prompt-ready payload for Gemini.</p>
+              <h2>Why it matters</h2>
+              <p>This reduces token waste and gives the model a denser context window with clearer structural cues.</p>
+            </article>
+          </body>
+        </html>
+        "#;
+
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/rust-core-v2".to_string()),
+            title: Some("Rust Core V2".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: Some("Structured extraction for browser summaries.".to_string()),
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: None,
+            html: Some(html.to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+        })
+        .expect("article should be processed");
+
+        assert_eq!(result.source, "html-primary");
+        assert!(result.blocks.len() >= 3);
+        assert!(result.prompt_payload.compressed_context.contains("prompt-ready payload"));
+        assert!(!result.prompt_payload.key_points.is_empty());
+    }
+
+    #[test]
+    fn process_article_uses_selection_when_available() {
+        let selection = "Rust Core V2 keeps the extraction pipeline deterministic and structured.\n\nIt returns ranked blocks, outline data, and a compressed context payload for the popup.";
+
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/selection".to_string()),
+            title: Some("Selection flow".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: Some(selection.to_string()),
+            text_content: Some("fallback text".to_string()),
+            html: Some("<html><body><p>fallback</p></body></html>".to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+        })
+        .expect("selection should be processed");
+
+        assert_eq!(result.source, "selection");
+        assert!(matches!(result.quality.page_type, PageType::Selection));
+        assert!(result.cleaned_text.contains("compressed context payload"));
+    }
 }

@@ -1,4 +1,4 @@
-import init, { summarize_article } from "./pkg/fire_summary.js";
+import init, { process_article } from "./pkg/fire_summary.js";
 
 const api = globalThis.browser ?? globalThis.chrome;
 const EMPTY_SUMMARY_TEXT = "尚未產生摘要。";
@@ -644,9 +644,12 @@ function hashString(value) {
 }
 
 function buildCacheKey(processedArticle, settings, url) {
+  const promptContext =
+    processedArticle?.promptPayload?.compressedContext || processedArticle.cleaned_text || "";
+
   return `${CACHE_PREFIX}${hashString(
     JSON.stringify({
-      version: 1,
+      version: 2,
       provider: settings.provider,
       model: settings.model,
       fallbackModel: settings.fallbackModel,
@@ -659,7 +662,7 @@ function buildCacheKey(processedArticle, settings, url) {
       customPrompt: settings.customPrompt,
       title: processedArticle.title || "",
       url,
-      cleanedText: processedArticle.cleaned_text,
+      promptContext,
     })
   )}`;
 }
@@ -828,7 +831,7 @@ async function loadProcessedArticleBundle() {
   await ensureWasmReady();
 
   return {
-    processedArticle: summarize_article(article),
+    processedArticle: process_article(article),
     url,
   };
 }
@@ -845,18 +848,44 @@ function buildSystemInstruction(settings) {
 }
 
 function buildUserPrompt(processedArticle, url) {
-  const parts = [
-    "Summarize the following webpage article.",
-    `Title: ${processedArticle.title || "Untitled"}`,
-    `URL: ${url}`,
-  ];
+  const promptPayload = processedArticle?.promptPayload || {};
+  const articleHeader =
+    typeof promptPayload.articleHeader === "string" ? promptPayload.articleHeader.trim() : "";
+  const compressedContext =
+    typeof promptPayload.compressedContext === "string"
+      ? promptPayload.compressedContext.trim()
+      : "";
+  const keyPoints = Array.isArray(promptPayload.keyPoints)
+    ? promptPayload.keyPoints.filter((item) => typeof item === "string" && item.trim())
+    : [];
+  const warnings = Array.isArray(processedArticle?.quality?.warnings)
+    ? processedArticle.quality.warnings.filter(
+        (item) => typeof item === "string" && item.trim()
+      )
+    : [];
+  const parts = ["Summarize the following webpage article."];
 
-  if (processedArticle.excerpt) {
-    parts.push(`Excerpt: ${processedArticle.excerpt}`);
+  if (articleHeader) {
+    parts.push(articleHeader);
+  } else {
+    parts.push(`Title: ${processedArticle.title || "Untitled"}`);
+    parts.push(`URL: ${url}`);
+    if (processedArticle.excerpt) {
+      parts.push(`Excerpt: ${processedArticle.excerpt}`);
+    }
   }
 
-  parts.push("Article:");
-  parts.push(processedArticle.cleaned_text);
+  if (keyPoints.length) {
+    parts.push(`Pre-ranked key points:\n- ${keyPoints.join("\n- ")}`);
+  }
+
+  parts.push("High-signal article context:");
+  parts.push(compressedContext || processedArticle.cleaned_text);
+
+  if (warnings.length) {
+    parts.push(`Extraction notes:\n- ${warnings.join("\n- ")}`);
+  }
+
   return parts.join("\n\n");
 }
 
