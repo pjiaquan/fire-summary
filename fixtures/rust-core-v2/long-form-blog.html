@@ -1,0 +1,32 @@
+<html lang="en">
+  <body>
+    <article class="post-content">
+      <h1>Shipping Rust Core v2 in a Browser Extension</h1>
+      <p>
+        We moved article extraction, ranking, and prompt packaging into Rust so
+        the browser extension could keep a deterministic content pipeline.
+      </p>
+      <p>
+        The biggest benefit was not raw speed. It was being able to test the
+        extraction and classification logic with stable fixtures instead of only
+        clicking through the popup manually.
+      </p>
+      <h2>What changed</h2>
+      <p>
+        The extension now extracts structured blocks, scores them, applies a
+        token budget, and sends a compressed context payload to Gemini instead
+        of pushing the entire page text into the model.
+      </p>
+      <p>
+        That makes long-form writing easier to summarize because the important
+        narrative blocks are preserved while boilerplate and repeated navigation
+        text get dropped earlier in the pipeline.
+      </p>
+      <h2>Tradeoffs</h2>
+      <p>
+        Build and release flows became more complex, so we added diagnostics,
+        fixture regression, and CI checks to keep the Rust core maintainable.
+      </p>
+    </article>
+  </body>
+</html>

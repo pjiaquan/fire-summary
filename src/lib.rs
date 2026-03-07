@@ -1295,8 +1295,6 @@ fn assess_quality(
         (PageType::Selection, 0.98)
     } else if paywall_signal && (cleaned_chars < 320 || content_blocks < 3) {
         (PageType::PaywalledPage, 0.78)
-    } else if cleaned_chars < 180 {
-        (PageType::SparsePage, 0.32)
     } else if search_signal && (list_ratio >= 0.35 || short_block_ratio >= 0.45) {
         (PageType::SearchResults, 0.84)
     } else if docs_signal && (heading_count >= 1 || code_like_blocks >= 1) {
@@ -1307,6 +1305,8 @@ fn assess_quality(
         (PageType::DiscussionThread, 0.76)
     } else if listing_signal || (list_ratio >= 0.55 && heading_count == 0) {
         (PageType::ListingPage, 0.72)
+    } else if cleaned_chars < 180 {
+        (PageType::SparsePage, 0.32)
     } else if content_blocks >= 3 && avg_content_block_chars >= 70.0 {
         (PageType::Article, 0.84)
     } else {

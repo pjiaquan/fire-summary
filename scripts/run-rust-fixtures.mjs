@@ -134,6 +134,24 @@ async function main() {
         );
       }
 
+      if (
+        Number.isFinite(fixture.minBlockCount) &&
+        (extraction.blocks?.length || 0) < Number(fixture.minBlockCount)
+      ) {
+        failures.push(
+          `expected minBlockCount=${fixture.minBlockCount}, got ${extraction.blocks?.length || 0}`
+        );
+      }
+
+      if (
+        Number.isFinite(fixture.minConfidence) &&
+        Number(classification.confidence || 0) < Number(fixture.minConfidence)
+      ) {
+        failures.push(
+          `expected minConfidence=${fixture.minConfidence}, got ${formatNumber(classification.confidence)}`
+        );
+      }
+
       reports.push({
         id: fixture.id,
         title: fixture.title || fixture.id,

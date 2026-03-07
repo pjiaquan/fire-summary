@@ -7,7 +7,20 @@
     "lang": "en",
     "metaDescription": "Structured extraction for browser summaries.",
     "expectedPageType": "article",
-    "expectedSafeToSummarize": true
+    "expectedSafeToSummarize": true,
+    "minBlockCount": 4,
+    "minConfidence": 0.8
+  },
+  {
+    "id": "long-form-blog",
+    "file": "long-form-blog.html",
+    "title": "Shipping Rust Core v2 in a Browser Extension",
+    "url": "https://example.com/blog/shipping-rust-core-v2",
+    "lang": "en",
+    "expectedPageType": "article",
+    "expectedSafeToSummarize": true,
+    "minBlockCount": 5,
+    "minConfidence": 0.8
   },
   {
     "id": "search-results",
@@ -16,7 +29,8 @@
     "url": "https://example.com/search?q=rust+extension",
     "lang": "en",
     "expectedPageType": "searchResults",
-    "expectedSafeToSummarize": false
+    "expectedSafeToSummarize": false,
+    "minBlockCount": 3
   },
   {
     "id": "docs-page",
@@ -25,7 +39,9 @@
     "url": "https://example.com/docs/rust-core-diagnostics",
     "lang": "en",
     "expectedPageType": "docsPage",
-    "expectedSafeToSummarize": true
+    "expectedSafeToSummarize": true,
+    "minBlockCount": 5,
+    "minConfidence": 0.75
   },
   {
     "id": "mixed-language",
@@ -34,7 +50,18 @@
     "url": "https://example.com/blog/rust-core-v2-notes",
     "lang": "zh-Hant",
     "expectedPageType": "article",
-    "expectedSafeToSummarize": true
+    "expectedSafeToSummarize": true,
+    "minBlockCount": 4
+  },
+  {
+    "id": "noisy-portal",
+    "file": "noisy-portal.html",
+    "title": "Top stories",
+    "url": "https://example.com/category/news",
+    "lang": "en",
+    "expectedPageType": "listingPage",
+    "expectedSafeToSummarize": false,
+    "minBlockCount": 2
   },
   {
     "id": "listing-page",
