@@ -7,6 +7,7 @@ import init, {
 const api = globalThis.browser ?? globalThis.chrome;
 const runButton = document.getElementById("run-diagnostics-button");
 const copyJsonButton = document.getElementById("copy-json-button");
+const copyFixtureButton = document.getElementById("copy-fixture-button");
 const statusNode = document.getElementById("status");
 const pageTitleNode = document.getElementById("page-title");
 const pageUrlNode = document.getElementById("page-url");
@@ -120,6 +121,23 @@ function getPageTypeLabel(pageType) {
   }
 }
 
+function slugifyFixtureId(value) {
+  return String(value || "fixture")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 48) || "fixture";
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  throw new Error("目前瀏覽器不支援 clipboard API");
+}
+
 function renderWarnings(warnings) {
   const items = Array.isArray(warnings)
     ? warnings
@@ -169,12 +187,13 @@ function renderRankedBlocks(processedArticle) {
   setStackContent(blocksListNode, items, "尚未取得 block ranking。");
 }
 
-function renderDiagnostics(tab, classification, extraction, processedArticle) {
+function renderDiagnostics(tab, articleInput, classification, extraction, processedArticle) {
   latestDiagnostics = {
     tab: {
       title: tab?.title || "",
       url: tab?.url || "",
     },
+    articleInput,
     classification,
     extraction,
     processedArticle,
@@ -228,12 +247,13 @@ async function runDiagnostics() {
       process_article(article),
     ]);
 
-    renderDiagnostics(tab, classification, extraction, processedArticle);
+    renderDiagnostics(tab, article, classification, extraction, processedArticle);
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "分析失敗", "status-warn");
   } finally {
     runButton.disabled = false;
     copyJsonButton.disabled = false;
+    copyFixtureButton.disabled = false;
   }
 }
 
@@ -244,13 +264,40 @@ async function copyJson() {
   }
 
   const serialized = JSON.stringify(latestDiagnostics, null, 2);
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(serialized);
-    setStatus("已複製 diagnostics JSON", "status-ok");
-    return;
+  await copyText(serialized);
+  setStatus("已複製 diagnostics JSON", "status-ok");
+}
+
+function buildFixtureDraft() {
+  if (!latestDiagnostics?.articleInput || !latestDiagnostics?.classification) {
+    throw new Error("目前沒有可輸出的 fixture 草稿");
   }
 
-  throw new Error("目前瀏覽器不支援 clipboard API");
+  const title = latestDiagnostics.articleInput.title || latestDiagnostics.tab?.title || "fixture";
+  const fixtureId = slugifyFixtureId(title);
+  return {
+    manifestEntry: {
+      id: fixtureId,
+      file: `${fixtureId}.html`,
+      title,
+      url: latestDiagnostics.articleInput.url || latestDiagnostics.tab?.url || "",
+      lang: latestDiagnostics.articleInput.lang || "",
+      metaDescription: latestDiagnostics.articleInput.metaDescription || "",
+      expectedPageType: latestDiagnostics.classification.pageType || "genericPage",
+      expectedSafeToSummarize: Boolean(latestDiagnostics.classification.safeToSummarize),
+    },
+    articleInput: latestDiagnostics.articleInput,
+    notes: {
+      pageTypeLabel: getPageTypeLabel(latestDiagnostics.classification.pageType),
+      warnings: latestDiagnostics.classification.warnings || [],
+    },
+  };
+}
+
+async function copyFixtureDraft() {
+  const draft = buildFixtureDraft();
+  await copyText(JSON.stringify(draft, null, 2));
+  setStatus("已複製 fixture 草稿", "status-ok");
 }
 
 runButton.addEventListener("click", () => {
@@ -262,6 +309,14 @@ copyJsonButton.addEventListener("click", async () => {
     await copyJson();
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "複製 JSON 失敗", "status-warn");
+  }
+});
+
+copyFixtureButton.addEventListener("click", async () => {
+  try {
+    await copyFixtureDraft();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "複製 fixture 草稿失敗", "status-warn");
   }
 });
 

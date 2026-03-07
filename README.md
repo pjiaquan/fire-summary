@@ -150,6 +150,7 @@ Diagnostics 頁會顯示：
 - extracted outline / blocks
 - top ranked blocks
 - compressed prompt context
+- diagnostics JSON / fixture draft export
 
 這個頁面會直接對目前 active tab 執行：
 
