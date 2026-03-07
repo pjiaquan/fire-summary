@@ -14,6 +14,7 @@ async function readJson(filePath) {
 }
 
 async function main() {
+  const allowBaselineDrift = process.argv.includes("--allow-baseline-drift");
   const errors = [];
   const manifest = await readJson(MANIFEST_PATH);
   const baseline = await readJson(BASELINE_PATH);
@@ -84,13 +85,13 @@ async function main() {
     }
     baselineIds.add(id);
 
-    if (!ids.has(id)) {
+    if (!allowBaselineDrift && !ids.has(id)) {
       errors.push(`baseline entry missing from manifest: ${id}`);
     }
   }
 
   for (const id of ids) {
-    if (!baselineIds.has(id)) {
+    if (!allowBaselineDrift && !baselineIds.has(id)) {
       errors.push(`manifest entry missing from baseline: ${id}`);
     }
   }
@@ -108,6 +109,9 @@ async function main() {
   console.log(`- Manifest entries: ${manifest.length}`);
   console.log(`- HTML fixtures: ${htmlFiles.length}`);
   console.log(`- Baseline entries: ${baseline.fixtures.length}`);
+  if (allowBaselineDrift) {
+    console.log("- Baseline drift allowed for this validation run");
+  }
 }
 
 main().catch((error) => {

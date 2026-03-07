@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { access, readFile, writeFile } from "node:fs/promises";
 import { spawn } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -7,10 +7,11 @@ const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 const FIXTURE_DIR = path.join(REPO_ROOT, "fixtures", "rust-core-v2");
 const MANIFEST_PATH = path.join(FIXTURE_DIR, "manifest.json");
+const WASM_PATH = path.join(REPO_ROOT, "extension", "pkg", "fire_summary_bg.wasm");
 
 function usage() {
   console.error(
-    "Usage: node scripts/import-rust-fixture.mjs <draft.json> [--snapshot-baseline]"
+    "Usage: node scripts/import-rust-fixture.mjs <draft.json> [--validate] [--run-regression] [--verify] [--snapshot-baseline]"
   );
 }
 
@@ -82,9 +83,9 @@ async function writeFixtureHtml(filename, html) {
   return targetPath;
 }
 
-function runNodeScript(scriptPath) {
+async function runCommand(command, args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [scriptPath], {
+    const child = spawn(command, args, {
       cwd: REPO_ROOT,
       stdio: "inherit",
     });
@@ -95,14 +96,34 @@ function runNodeScript(scriptPath) {
         resolve();
         return;
       }
-      reject(new Error(`command failed with exit code ${code}: ${scriptPath}`));
+      reject(new Error(`command failed with exit code ${code}: ${command} ${args.join(" ")}`));
     });
   });
+}
+
+function runNodeScript(scriptPath) {
+  return runCommand(process.execPath, [scriptPath]);
+}
+
+function runNodeScriptWithArgs(scriptPath, args = []) {
+  return runCommand(process.execPath, [scriptPath, ...args]);
+}
+
+async function ensureBuiltWasm() {
+  try {
+    await access(WASM_PATH);
+  } catch {
+    throw new Error(
+      "Rust wasm package is missing. Run `bash scripts/build-extension.sh` before using --run-regression or --verify."
+    );
+  }
 }
 
 async function main() {
   const args = process.argv.slice(2);
   const draftPath = args.find((arg) => !arg.startsWith("--"));
+  const validateFixtures = args.includes("--validate") || args.includes("--verify");
+  const runRegression = args.includes("--run-regression") || args.includes("--verify");
   const snapshotBaseline = args.includes("--snapshot-baseline");
 
   if (!draftPath) {
@@ -127,9 +148,25 @@ async function main() {
   console.log(`- HTML: ${targetPath}`);
   console.log(`- Manifest: ${MANIFEST_PATH}`);
 
+  if (validateFixtures) {
+    console.log("- Validating fixture consistency...");
+    await runNodeScriptWithArgs(path.join(REPO_ROOT, "scripts", "validate-rust-fixtures.mjs"), [
+      "--allow-baseline-drift",
+    ]);
+  }
+
+  if (runRegression) {
+    await ensureBuiltWasm();
+    console.log("- Running fixture regression report...");
+    await runNodeScript(path.join(REPO_ROOT, "scripts", "run-rust-fixtures.mjs"));
+    await runNodeScript(path.join(REPO_ROOT, "scripts", "render-rust-fixture-report.mjs"));
+  }
+
   if (snapshotBaseline) {
     console.log("- Refreshing regression baseline...");
     await runNodeScript(path.join(REPO_ROOT, "scripts", "snapshot-rust-fixture-baseline.mjs"));
+    console.log("- Re-validating fixture consistency with synced baseline...");
+    await runNodeScript(path.join(REPO_ROOT, "scripts", "validate-rust-fixtures.mjs"));
   }
 }
 

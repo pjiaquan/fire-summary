@@ -175,6 +175,19 @@ node scripts/import-rust-fixture.mjs /path/to/draft.json
 node scripts/import-rust-fixture.mjs /path/to/draft.json --snapshot-baseline
 ```
 
+如果你要一口氣做匯入後驗證，也可以用：
+
+```bash
+node scripts/import-rust-fixture.mjs /path/to/draft.json --verify
+```
+
+可用選項：
+
+- `--validate`：只跑 fixture consistency validation
+- `--run-regression`：跑 fixture regression report（使用目前已 build 的 `extension/pkg`）
+- `--verify`：等同於 `--validate --run-regression`
+- `--snapshot-baseline`：在最後重建 baseline，並再做一次完整 consistency validation
+
 ## Rust Fixture Regression
 
 如果你要批次檢查 Rust Core v2 的抽取與分類規則，可以執行：
