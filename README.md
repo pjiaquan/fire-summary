@@ -39,6 +39,7 @@ bash scripts/package-extension.sh
 上架商店可直接引用 repo 內的隱私政策文件：
 
 - `PRIVACY.md`
+- `STORE_LISTING.md`
 
 ## 載入到 Chrome
 
