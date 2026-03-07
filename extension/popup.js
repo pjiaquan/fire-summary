@@ -109,6 +109,8 @@ function getPageTypeLabel(pageType) {
       return "產品頁";
     case "discussionThread":
       return "討論串";
+    case "paywalledPage":
+      return "訂閱牆頁面";
     case "sparsePage":
       return "內容稀少頁";
     case "genericPage":

@@ -183,6 +183,7 @@ pub enum PageType {
     ListingPage,
     ProductPage,
     DiscussionThread,
+    PaywalledPage,
     SparsePage,
     GenericPage,
 }
@@ -1266,6 +1267,13 @@ fn assess_quality(
         || lower_title.contains("guide")
         || lower_title.contains("reference")
         || lower_title.contains("getting started");
+    let paywall_signal = lower_url.contains("/subscribe")
+        || lower_url.contains("/paywall")
+        || lower_title.contains("subscribe to continue")
+        || lower_title.contains("subscription required")
+        || lower_title.contains("subscriber only")
+        || cleaned_text.to_ascii_lowercase().contains("subscribe to continue reading")
+        || cleaned_text.to_ascii_lowercase().contains("subscriber-only content");
 
     if cleaned_chars < 220 {
         warnings.push("Extracted article text is short.".to_string());
@@ -1285,6 +1293,8 @@ fn assess_quality(
 
     let (page_type, mut confidence): (PageType, f64) = if source == "selection" {
         (PageType::Selection, 0.98)
+    } else if paywall_signal && (cleaned_chars < 320 || content_blocks < 3) {
+        (PageType::PaywalledPage, 0.78)
     } else if cleaned_chars < 180 {
         (PageType::SparsePage, 0.32)
     } else if search_signal && (list_ratio >= 0.35 || short_block_ratio >= 0.45) {
@@ -1324,11 +1334,17 @@ fn assess_quality(
     if matches!(page_type, PageType::DiscussionThread) {
         warnings.push("This page looks like a discussion thread, so the extracted content may mix multiple speakers and viewpoints.".to_string());
     }
+    if matches!(page_type, PageType::PaywalledPage) {
+        warnings.push("This page looks paywalled or subscriber-only, so the extracted text may be incomplete.".to_string());
+    }
 
     QualityReport {
         page_type: page_type.clone(),
         confidence: confidence.clamp(0.0, 0.99),
-        safe_to_summarize: matches!(page_type, PageType::Article | PageType::Selection | PageType::DocsPage)
+        safe_to_summarize: matches!(
+            page_type,
+            PageType::Article | PageType::Selection | PageType::DocsPage
+        )
             || (matches!(page_type, PageType::GenericPage) && cleaned_chars >= 260),
         warnings,
     }
@@ -1655,6 +1671,10 @@ mod tests {
     const DISCUSSION_THREAD_FIXTURE: &str =
         include_str!("../fixtures/rust-core-v2/discussion-thread.html");
     const DOCS_PAGE_FIXTURE: &str = include_str!("../fixtures/rust-core-v2/docs-page.html");
+    const MIXED_LANGUAGE_FIXTURE: &str =
+        include_str!("../fixtures/rust-core-v2/mixed-language.html");
+    const PAYWALLED_PAGE_FIXTURE: &str =
+        include_str!("../fixtures/rust-core-v2/paywalled-page.html");
     const SEARCH_RESULTS_FIXTURE: &str =
         include_str!("../fixtures/rust-core-v2/search-results.html");
 
@@ -1786,5 +1806,53 @@ mod tests {
 
         assert!(matches!(result.quality.page_type, PageType::DocsPage));
         assert!(result.quality.safe_to_summarize);
+    }
+
+    #[test]
+    fn process_article_handles_mixed_language_articles() {
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/blog/rust-core-v2-notes".to_string()),
+            title: Some("Rust Core v2 上線筆記".to_string()),
+            lang: Some("zh-Hant".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: None,
+            html: Some(MIXED_LANGUAGE_FIXTURE.to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
+        })
+        .expect("mixed-language article should be processed");
+
+        assert!(matches!(result.quality.page_type, PageType::Article));
+        assert!(result.quality.safe_to_summarize);
+    }
+
+    #[test]
+    fn process_article_classifies_paywalled_pages() {
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/paywall/rust-browser-analysis".to_string()),
+            title: Some("Subscriber-only analysis: Rust in the browser".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: None,
+            html: Some(PAYWALLED_PAGE_FIXTURE.to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
+        })
+        .expect("paywalled page should be processed");
+
+        assert!(matches!(result.quality.page_type, PageType::PaywalledPage));
+        assert!(!result.quality.safe_to_summarize);
     }
 }

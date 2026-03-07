@@ -1,0 +1,20 @@
+<html lang="zh-Hant">
+  <body>
+    <article class="article-content">
+      <h1>Rust Core v2 上線筆記</h1>
+      <p>
+        Fire Summary 現在會先用 Rust pipeline 做 article extraction，再把高訊號內容打包成
+        prompt payload。
+      </p>
+      <p>
+        這讓 Gemini 不需要直接吃 full page text，而是聚焦在 ranked blocks、outline 與
+        compressed context。
+      </p>
+      <h2>Why this matters</h2>
+      <p>
+        對中英混排內容來說，token budgeting 與 salience ranking 會比單純 innerText 更穩，
+        especially when the page mixes headings, code, and narrative paragraphs.
+      </p>
+    </article>
+  </body>
+</html>

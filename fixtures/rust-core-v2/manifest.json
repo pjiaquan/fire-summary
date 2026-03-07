@@ -28,6 +28,15 @@
     "expectedSafeToSummarize": true
   },
   {
+    "id": "mixed-language",
+    "file": "mixed-language.html",
+    "title": "Rust Core v2 上線筆記",
+    "url": "https://example.com/blog/rust-core-v2-notes",
+    "lang": "zh-Hant",
+    "expectedPageType": "article",
+    "expectedSafeToSummarize": true
+  },
+  {
     "id": "listing-page",
     "file": "listing-page.html",
     "title": "Latest posts",
@@ -52,6 +61,15 @@
     "url": "https://example.com/forum/thread/rust-article-extraction",
     "lang": "en",
     "expectedPageType": "discussionThread",
+    "expectedSafeToSummarize": false
+  },
+  {
+    "id": "paywalled-page",
+    "file": "paywalled-page.html",
+    "title": "Subscriber-only analysis: Rust in the browser",
+    "url": "https://example.com/paywall/rust-browser-analysis",
+    "lang": "en",
+    "expectedPageType": "paywalledPage",
     "expectedSafeToSummarize": false
   },
   {
