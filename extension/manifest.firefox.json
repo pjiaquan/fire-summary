@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Fire Summary",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Extract the current page and summarize it with the bundled Rust/Wasm module.",
   "icons": {
     "16": "icons/icon-16.png",
