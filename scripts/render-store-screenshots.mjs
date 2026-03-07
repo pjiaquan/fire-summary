@@ -21,17 +21,17 @@ const pages = [
   {
     file: "popup-showcase.html",
     output: "fire-summary-store-popup.png",
-    viewport: { width: 1440, height: 1024 },
+    viewport: { width: 1280, height: 800 },
   },
   {
     file: "settings-showcase.html",
     output: "fire-summary-store-settings.png",
-    viewport: { width: 1440, height: 1600 },
+    viewport: { width: 1280, height: 800 },
   },
   {
     file: "discussion-showcase.html",
     output: "fire-summary-store-discussion.png",
-    viewport: { width: 1440, height: 1600 },
+    viewport: { width: 1280, height: 800 },
   },
 ];
 
@@ -94,7 +94,7 @@ try {
     });
     await page.screenshot({
       path: path.join(shotsDir, pageSpec.output),
-      fullPage: true,
+      fullPage: false,
     });
     await page.close();
   }

@@ -6,6 +6,35 @@
     <title>Fire Summary Settings Showcase</title>
     <link rel="stylesheet" href="../../../extension/settings.css" />
     <style>
+      body {
+        width: 1280px;
+        height: 800px;
+        min-height: 800px;
+        margin: 0 auto;
+        overflow: hidden;
+      }
+
+      .shell {
+        width: 1180px;
+        padding: 22px 0 0;
+        transform: scale(0.77);
+        transform-origin: top center;
+      }
+
+      .hero {
+        margin-bottom: 10px;
+      }
+
+      .panel {
+        padding: 18px;
+      }
+
+      .field,
+      .cache-box,
+      .toggle-field {
+        margin-bottom: 12px;
+      }
+
       .combo-field.open .combo-options {
         display: block;
       }
@@ -119,16 +148,16 @@
                 <option selected>1.5</option>
               </select>
             </label>
-
-            <label class="toggle-field" for="stream-output">
-              <span>
-                <span class="label">Stream Output</span>
-                <span class="hint">即時回填摘要內容</span>
-              </span>
-              <input id="stream-output" type="checkbox" checked />
-            </label>
           </div>
         </section>
+
+        <label class="toggle-field" for="stream-output">
+          <span>
+            <span class="label">Stream Output</span>
+            <span class="hint">即時回填摘要內容</span>
+          </span>
+          <input id="stream-output" type="checkbox" checked />
+        </label>
 
         <div class="footer">
           <p class="save-status">設定已儲存</p>

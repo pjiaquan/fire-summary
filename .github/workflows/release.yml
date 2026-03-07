@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag to release, for example v0.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust toolchain target
+        run: rustup target add wasm32-unknown-unknown
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack --locked
+
+      - name: Build release packages
+        run: bash scripts/package-extension.sh
+
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
+        run: |
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+          else
+            release_tag="${{ inputs.release_tag }}"
+          fi
+
+          if [[ -z "${release_tag}" ]]; then
+            echo "::error::A release tag is required."
+            exit 1
+          fi
+
+          version="${release_tag#v}"
+          manifest_version="$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' extension/manifest.json | head -n 1)"
+
+          if [[ -z "${manifest_version}" ]]; then
+            echo "::error::Failed to read version from extension/manifest.json"
+            exit 1
+          fi
+
+          if [[ "${manifest_version}" != "${version}" ]]; then
+            echo "::error::Tag ${release_tag} does not match manifest version ${manifest_version}"
+            exit 1
+          fi
+
+          echo "release_tag=${release_tag}" >>"${GITHUB_OUTPUT}"
+          echo "version=${version}" >>"${GITHUB_OUTPUT}"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: fire-summary-release-${{ steps.meta.outputs.version }}
+          path: dist/*.zip
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: bash
+        run: |
+          release_tag="${{ steps.meta.outputs.release_tag }}"
+          release_title="Fire Summary ${release_tag}"
+
+          if gh release view "${release_tag}" >/dev/null 2>&1; then
+            gh release upload "${release_tag}" dist/*.zip --clobber
+          else
+            gh release create "${release_tag}" dist/*.zip \
+              --title "${release_title}" \
+              --generate-notes
+          fi

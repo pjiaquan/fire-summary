@@ -1,5 +1,7 @@
 # Fire Summary
 
+![Fire Summary logo](logo.png)
+
 這個 repo 現在包含兩份最小可跑的 extension 骨架，並直接使用目前的 Rust/Wasm crate 做摘要。
 
 ## 結構
@@ -33,6 +35,20 @@ bash scripts/package-extension.sh
 
 - `dist/fire-summary-chrome-v<version>.zip`
 - `dist/fire-summary-firefox-v<version>.zip`
+
+## GitHub Release
+
+Repo 已包含 GitHub Actions release workflow：
+
+- 推送 tag，例如 `v0.1.0`，會自動 build、打包、建立 GitHub Release 並上傳 zip
+- 也可從 Actions 頁面手動執行 `Release` workflow，並填入 `release_tag`
+
+建議流程：
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## Privacy
 
