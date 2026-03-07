@@ -190,17 +190,53 @@ function escapeHtml(text) {
     .replaceAll("'", "&#39;");
 }
 
-function renderInline(text) {
-  let html = escapeHtml(text);
-  html = html.replace(
-    /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g,
-    (_, label, url) =>
-      `<a href="${escapeHtml(url)}" target="_blank" rel="noreferrer">${label}</a>`
-  );
-  html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
-  html = html.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
-  html = html.replace(/\*([^*]+)\*/g, "<em>$1</em>");
-  return html;
+function appendInlineContent(parent, text) {
+  const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  let lastIndex = 0;
+  let match = pattern.exec(text);
+
+  while (match) {
+    if (match.index > lastIndex) {
+      parent.append(document.createTextNode(text.slice(lastIndex, match.index)));
+    }
+
+    if (match[1] !== undefined && match[2] !== undefined) {
+      const link = document.createElement("a");
+      link.href = match[2];
+      link.target = "_blank";
+      link.rel = "noreferrer";
+      link.textContent = match[1];
+      parent.append(link);
+    } else if (match[3] !== undefined) {
+      const code = document.createElement("code");
+      code.textContent = match[3];
+      parent.append(code);
+    } else if (match[4] !== undefined) {
+      const strong = document.createElement("strong");
+      strong.textContent = match[4];
+      parent.append(strong);
+    } else if (match[5] !== undefined) {
+      const emphasis = document.createElement("em");
+      emphasis.textContent = match[5];
+      parent.append(emphasis);
+    }
+
+    lastIndex = pattern.lastIndex;
+    match = pattern.exec(text);
+  }
+
+  if (lastIndex < text.length) {
+    parent.append(document.createTextNode(text.slice(lastIndex)));
+  }
+}
+
+function appendInlineLines(parent, lines) {
+  lines.forEach((line, index) => {
+    appendInlineContent(parent, line);
+    if (index < lines.length - 1) {
+      parent.append(document.createElement("br"));
+    }
+  });
 }
 
 function parseHeadingLine(line) {
@@ -219,7 +255,7 @@ function parseHeadingLine(line) {
 function renderBlock(block) {
   const trimmed = block.trim();
   if (!trimmed) {
-    return "";
+    return null;
   }
 
   const lines = trimmed.split(/\r?\n/);
@@ -227,47 +263,72 @@ function renderBlock(block) {
   const remaining = lines.slice(1).join("\n").trim();
   const heading = parseHeadingLine(firstLine);
   if (heading) {
-    const headingHtml = `<h${heading.level}>${renderInline(heading.text)}</h${heading.level}>`;
-    if (!remaining) {
-      return headingHtml;
+    const fragment = document.createDocumentFragment();
+    const headingNode = document.createElement(`h${heading.level}`);
+    appendInlineContent(headingNode, heading.text);
+    fragment.append(headingNode);
+    if (remaining) {
+      fragment.append(renderMarkdown(remaining));
     }
-
-    return `${headingHtml}${renderMarkdown(remaining)}`;
+    return fragment;
   }
 
   const codeMatch = trimmed.match(/^```[\w-]*\n?([\s\S]*?)```$/);
   if (codeMatch) {
-    return `<pre><code>${escapeHtml(codeMatch[1].trim())}</code></pre>`;
+    const pre = document.createElement("pre");
+    const code = document.createElement("code");
+    code.textContent = codeMatch[1].trim();
+    pre.append(code);
+    return pre;
   }
 
   if (lines.every((line) => /^[-*]\s+/.test(line))) {
-    return `<ul>${lines
-      .map((line) => `<li>${renderInline(line.replace(/^[-*]\s+/, ""))}</li>`)
-      .join("")}</ul>`;
+    const list = document.createElement("ul");
+    for (const line of lines) {
+      const item = document.createElement("li");
+      appendInlineContent(item, line.replace(/^[-*]\s+/, ""));
+      list.append(item);
+    }
+    return list;
   }
 
   if (lines.every((line) => /^\d+\.\s+/.test(line))) {
-    return `<ol>${lines
-      .map((line) => `<li>${renderInline(line.replace(/^\d+\.\s+/, ""))}</li>`)
-      .join("")}</ol>`;
+    const list = document.createElement("ol");
+    for (const line of lines) {
+      const item = document.createElement("li");
+      appendInlineContent(item, line.replace(/^\d+\.\s+/, ""));
+      list.append(item);
+    }
+    return list;
   }
 
   if (lines.every((line) => /^>\s?/.test(line))) {
-    const quote = lines.map((line) => line.replace(/^>\s?/, "")).join("<br>");
-    return `<blockquote>${renderInline(quote)}</blockquote>`;
+    const quote = document.createElement("blockquote");
+    appendInlineLines(
+      quote,
+      lines.map((line) => line.replace(/^>\s?/, ""))
+    );
+    return quote;
   }
 
-  return `<p>${lines.map((line) => renderInline(line)).join("<br>")}</p>`;
+  const paragraph = document.createElement("p");
+  appendInlineLines(paragraph, lines);
+  return paragraph;
 }
 
 function renderMarkdown(markdown) {
+  const fragment = document.createDocumentFragment();
   const blocks = markdown
     .trim()
     .split(/\n\s*\n/)
     .map((block) => renderBlock(block))
     .filter(Boolean);
 
-  return blocks.join("");
+  for (const block of blocks) {
+    fragment.append(block);
+  }
+
+  return fragment;
 }
 
 function parseSummaryDocument(markdown, fallbackTitle) {
@@ -306,7 +367,7 @@ function setRenderedSummary(markdown, fallbackTitle) {
   }
 
   summaryNode.classList.remove("empty");
-  summaryNode.innerHTML = renderMarkdown(parsed.bodyMarkdown);
+  summaryNode.replaceChildren(renderMarkdown(parsed.bodyMarkdown));
   return parsed;
 }
 
@@ -330,7 +391,7 @@ function renderStreamingPreview(markdown) {
     tailParts.push(fenceTail);
   }
 
-  const htmlParts = [];
+  const fragment = document.createDocumentFragment();
   let paragraphLines = [];
   let listItems = [];
   let listType = "";
@@ -340,7 +401,9 @@ function renderStreamingPreview(markdown) {
     if (paragraphLines.length === 0) {
       return;
     }
-    htmlParts.push(`<p>${paragraphLines.map((line) => renderInline(line)).join("<br>")}</p>`);
+    const paragraph = document.createElement("p");
+    appendInlineLines(paragraph, paragraphLines);
+    fragment.append(paragraph);
     paragraphLines = [];
   };
 
@@ -348,9 +411,13 @@ function renderStreamingPreview(markdown) {
     if (listItems.length === 0 || !listType) {
       return;
     }
-    htmlParts.push(
-      `<${listType}>${listItems.map((item) => `<li>${renderInline(item)}</li>`).join("")}</${listType}>`
-    );
+    const list = document.createElement(listType);
+    for (const itemText of listItems) {
+      const item = document.createElement("li");
+      appendInlineContent(item, itemText);
+      list.append(item);
+    }
+    fragment.append(list);
     listItems = [];
     listType = "";
   };
@@ -359,7 +426,9 @@ function renderStreamingPreview(markdown) {
     if (quoteLines.length === 0) {
       return;
     }
-    htmlParts.push(`<blockquote>${quoteLines.map((line) => renderInline(line)).join("<br>")}</blockquote>`);
+    const quote = document.createElement("blockquote");
+    appendInlineLines(quote, quoteLines);
+    fragment.append(quote);
     quoteLines = [];
   };
 
@@ -379,7 +448,9 @@ function renderStreamingPreview(markdown) {
       flushParagraph();
       flushList();
       flushQuote();
-      htmlParts.push(`<h${heading.level}>${renderInline(heading.text)}</h${heading.level}>`);
+      const headingNode = document.createElement(`h${heading.level}`);
+      appendInlineContent(headingNode, heading.text);
+      fragment.append(headingNode);
       continue;
     }
 
@@ -424,7 +495,7 @@ function renderStreamingPreview(markdown) {
   flushQuote();
 
   return {
-    html: htmlParts.join(""),
+    fragment,
     tail: tailParts.join("\n").trim(),
   };
 }
@@ -436,11 +507,25 @@ function setStreamingSummary(markdown, fallbackTitle) {
   summaryNode.classList.remove("empty");
   summaryNode.classList.add("streaming");
 
-  const tailHtml = preview.tail
-    ? `<pre class="stream-tail"><code>${escapeHtml(preview.tail)}</code></pre>`
-    : "";
-  summaryNode.innerHTML =
-    preview.html || tailHtml ? `${preview.html}${tailHtml}` : EMPTY_SUMMARY_TEXT;
+  const nodes = [];
+  if (preview.fragment.childNodes.length > 0) {
+    nodes.push(preview.fragment);
+  }
+  if (preview.tail) {
+    const pre = document.createElement("pre");
+    pre.className = "stream-tail";
+    const code = document.createElement("code");
+    code.textContent = preview.tail;
+    pre.append(code);
+    nodes.push(pre);
+  }
+
+  if (nodes.length === 0) {
+    summaryNode.textContent = EMPTY_SUMMARY_TEXT;
+    return;
+  }
+
+  summaryNode.replaceChildren(...nodes);
 }
 
 async function copyText(text) {

@@ -218,18 +218,27 @@ function getFilteredLanguages(query) {
 function renderTargetLanguageOptions(query = "") {
   const filteredLanguages = getFilteredLanguages(query);
   if (filteredLanguages.length === 0) {
-    targetLanguageOptions.innerHTML = '<div class="combo-empty">找不到符合的語言</div>';
+    const emptyNode = document.createElement("div");
+    emptyNode.className = "combo-empty";
+    emptyNode.textContent = "找不到符合的語言";
+    targetLanguageOptions.replaceChildren(emptyNode);
     return;
   }
 
-  targetLanguageOptions.innerHTML = filteredLanguages
-    .map((language) => {
-      const selectedClass = language === targetLanguageInput.value ? " selected" : "";
-      return `<button type="button" class="combo-option${selectedClass}" data-language="${escapeHtml(
-        language
-      )}">${escapeHtml(language)}</button>`;
-    })
-    .join("");
+  const fragment = document.createDocumentFragment();
+  for (const language of filteredLanguages) {
+    const option = document.createElement("button");
+    option.type = "button";
+    option.className = "combo-option";
+    option.dataset.language = language;
+    option.textContent = language;
+    if (language === targetLanguageInput.value) {
+      option.classList.add("selected");
+    }
+    fragment.append(option);
+  }
+
+  targetLanguageOptions.replaceChildren(fragment);
 }
 
 function initializeTargetLanguageCombobox() {
