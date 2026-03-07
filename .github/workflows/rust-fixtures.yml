@@ -24,6 +24,15 @@ jobs:
       - name: Run Rust fixture regression harness
         run: bash scripts/run-rust-fixtures.sh
 
+      - name: Publish job summary
+        if: always()
+        run: |
+          cat output/rust-fixtures/latest.md >> "$GITHUB_STEP_SUMMARY"
+          if [ -f output/rust-fixtures/comparison.md ]; then
+            printf '\n---\n\n' >> "$GITHUB_STEP_SUMMARY"
+            cat output/rust-fixtures/comparison.md >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload Rust fixture report
         if: always()
         uses: actions/upload-artifact@v4

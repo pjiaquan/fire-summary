@@ -187,12 +187,24 @@ bash scripts/run-rust-fixtures.sh
 - expectation mismatch
 - `output/rust-fixtures/latest.json` JSON report
 - `output/rust-fixtures/latest.md` Markdown summary
+- `output/rust-fixtures/comparison.json` baseline comparison report（如果 repo 內有 baseline）
+- `output/rust-fixtures/comparison.md` baseline comparison Markdown summary
 
 目前 fixture 定義在：
 
 - `fixtures/rust-core-v2/manifest.json`
 
-GitHub Actions 也會在 push / pull request 時自動執行同一套 Rust fixture regression，並上傳 JSON / Markdown report artifact。
+GitHub Actions 也會在 push / pull request 時自動執行同一套 Rust fixture regression，並上傳 JSON / Markdown report artifact；同時把最新 fixture report 與 baseline comparison 直接寫進 job summary。
+
+如果你要更新目前的 regression baseline，可以先跑：
+
+```bash
+node scripts/snapshot-rust-fixture-baseline.mjs
+```
+
+之後 `bash scripts/run-rust-fixtures.sh` 就會自動把最新 report 和
+`fixtures/rust-core-v2/baseline.json` 做比對，抓出明顯的 confidence / block count /
+cleaned chars / prompt tokens 退步。
 
 ## 目前行為
 

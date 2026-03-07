@@ -1,0 +1,128 @@
+{
+  "generatedAt": "2026-03-07T12:56:51.304Z",
+  "sourceReportGeneratedAt": "2026-03-07T12:55:10.554Z",
+  "fixtureCount": 11,
+  "fixtures": [
+    {
+      "id": "article",
+      "title": "Rust Core V2",
+      "pageType": "article",
+      "safeToSummarize": true,
+      "confidence": 0.97,
+      "blockCount": 5,
+      "cleanedChars": 353,
+      "promptTokens": 103,
+      "selectionStrategy": "ranked-blocks-diverse-sections"
+    },
+    {
+      "id": "long-form-blog",
+      "title": "Shipping Rust Core v2 in a Browser Extension",
+      "pageType": "article",
+      "safeToSummarize": true,
+      "confidence": 0.97,
+      "blockCount": 8,
+      "cleanedChars": 906,
+      "promptTokens": 223,
+      "selectionStrategy": "ranked-blocks-diverse-sections"
+    },
+    {
+      "id": "search-results",
+      "title": "Search results for rust extension",
+      "pageType": "searchResults",
+      "safeToSummarize": false,
+      "confidence": 0.76,
+      "blockCount": 4,
+      "cleanedChars": 381,
+      "promptTokens": 123,
+      "selectionStrategy": "ranked-blocks-diverse-sections"
+    },
+    {
+      "id": "docs-page",
+      "title": "Getting Started with Rust Core Diagnostics",
+      "pageType": "docsPage",
+      "safeToSummarize": true,
+      "confidence": 0.95,
+      "blockCount": 7,
+      "cleanedChars": 423,
+      "promptTokens": 152,
+      "selectionStrategy": "ranked-blocks-diverse-sections"
+    },
+    {
+      "id": "mixed-language",
+      "title": "Rust Core v2 上線筆記",
+      "pageType": "article",
+      "safeToSummarize": true,
+      "confidence": 0.97,
+      "blockCount": 5,
+      "cleanedChars": 338,
+      "promptTokens": 137,
+      "selectionStrategy": "ranked-blocks-diverse-sections"
+    },
+    {
+      "id": "noisy-portal",
+      "title": "Top stories",
+      "pageType": "listingPage",
+      "safeToSummarize": false,
+      "confidence": 0.64,
+      "blockCount": 2,
+      "cleanedChars": 96,
+      "promptTokens": 86,
+      "selectionStrategy": "ranked-blocks-diverse-sections"
+    },
+    {
+      "id": "listing-page",
+      "title": "Latest posts",
+      "pageType": "listingPage",
+      "safeToSummarize": false,
+      "confidence": 0.64,
+      "blockCount": 4,
+      "cleanedChars": 191,
+      "promptTokens": 103,
+      "selectionStrategy": "ranked-blocks-diverse-sections"
+    },
+    {
+      "id": "product-page",
+      "title": "Fire Summary Pro pricing",
+      "pageType": "productPage",
+      "safeToSummarize": false,
+      "confidence": 0.82,
+      "blockCount": 5,
+      "cleanedChars": 292,
+      "promptTokens": 110,
+      "selectionStrategy": "ranked-blocks"
+    },
+    {
+      "id": "discussion-thread",
+      "title": "Forum discussion about Rust article extraction",
+      "pageType": "discussionThread",
+      "safeToSummarize": false,
+      "confidence": 0.76,
+      "blockCount": 4,
+      "cleanedChars": 324,
+      "promptTokens": 115,
+      "selectionStrategy": "ranked-blocks-diverse-sections"
+    },
+    {
+      "id": "paywalled-page",
+      "title": "Subscriber-only analysis: Rust in the browser",
+      "pageType": "paywalledPage",
+      "safeToSummarize": false,
+      "confidence": 0.7000000000000001,
+      "blockCount": 1,
+      "cleanedChars": 247,
+      "promptTokens": 107,
+      "selectionStrategy": "ranked-blocks"
+    },
+    {
+      "id": "sparse-page",
+      "title": "Sign in",
+      "pageType": "sparsePage",
+      "safeToSummarize": false,
+      "confidence": 0.24,
+      "blockCount": 1,
+      "cleanedChars": 27,
+      "promptTokens": 67,
+      "selectionStrategy": "ranked-blocks"
+    }
+  ]
+}
