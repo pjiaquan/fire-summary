@@ -26,6 +26,7 @@ const enableGoogleSearchInput = document.getElementById("enable-google-search");
 const autoExportTxtInput = document.getElementById("auto-export-txt");
 const summaryCacheEnabledInput = document.getElementById("summary-cache-enabled");
 const clearCacheButton = document.getElementById("clear-cache-button");
+const openDiagnosticsButton = document.getElementById("open-diagnostics-button");
 const CACHE_INDEX_KEY = "__summaryCacheIndex";
 const SESSION_API_KEY_KEY = "__sessionApiKey";
 const FONT_FAMILY_OPTIONS = new Set(["pingfang", "systemSans", "notoSansTc", "serif"]);
@@ -755,6 +756,20 @@ clearCacheButton.addEventListener("click", async () => {
     setSaveStatus(error instanceof Error ? error.message : "快取清理失敗");
   } finally {
     clearCacheButton.disabled = false;
+  }
+});
+
+openDiagnosticsButton?.addEventListener("click", async () => {
+  try {
+    if (api.tabs?.create && api.runtime?.getURL) {
+      await api.tabs.create({ url: api.runtime.getURL("diagnostics.html") });
+      setSaveStatus("已開啟 Rust Diagnostics");
+      return;
+    }
+
+    throw new Error("目前瀏覽器無法開啟 diagnostics 頁面");
+  } catch (error) {
+    setSaveStatus(error instanceof Error ? error.message : "無法開啟 diagnostics");
   }
 });
 

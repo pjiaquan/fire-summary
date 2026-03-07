@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Rust Core Diagnostics</title>
+    <link rel="stylesheet" href="diagnostics.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Diagnostics</p>
+        <h1>Rust Core v2</h1>
+        <p class="lead">
+          直接檢查目前分頁的頁面分類、抽取品質、block ranking 與 prompt packaging。
+        </p>
+      </section>
+
+      <section class="panel">
+        <div class="toolbar">
+          <button id="run-diagnostics-button" type="button">分析目前分頁</button>
+          <button id="copy-json-button" type="button" class="secondary-button">複製 JSON</button>
+        </div>
+        <p id="status" class="status">尚未分析</p>
+      </section>
+
+      <section class="panel">
+        <p class="section-title">Page</p>
+        <dl class="meta-grid">
+          <div class="meta-item">
+            <dt>Title</dt>
+            <dd id="page-title">-</dd>
+          </div>
+          <div class="meta-item">
+            <dt>URL</dt>
+            <dd id="page-url">-</dd>
+          </div>
+          <div class="meta-item">
+            <dt>Classification</dt>
+            <dd id="page-type">-</dd>
+          </div>
+          <div class="meta-item">
+            <dt>Confidence</dt>
+            <dd id="page-confidence">-</dd>
+          </div>
+          <div class="meta-item">
+            <dt>Safe</dt>
+            <dd id="page-safe">-</dd>
+          </div>
+          <div class="meta-item">
+            <dt>Source</dt>
+            <dd id="page-source">-</dd>
+          </div>
+        </dl>
+        <div class="warnings">
+          <p class="subheading">Warnings</p>
+          <div id="warnings-list" class="stack empty">目前沒有 warning。</div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <p class="section-title">Extraction</p>
+        <dl class="meta-grid">
+          <div class="meta-item">
+            <dt>Blocks</dt>
+            <dd id="block-count">-</dd>
+          </div>
+          <div class="meta-item">
+            <dt>Cleaned Chars</dt>
+            <dd id="cleaned-chars">-</dd>
+          </div>
+          <div class="meta-item">
+            <dt>Prompt Tokens</dt>
+            <dd id="prompt-tokens">-</dd>
+          </div>
+          <div class="meta-item">
+            <dt>Selection Strategy</dt>
+            <dd id="selection-strategy">-</dd>
+          </div>
+        </dl>
+        <div class="stack-group">
+          <div>
+            <p class="subheading">Outline</p>
+            <div id="outline-list" class="stack empty">尚未取得 outline。</div>
+          </div>
+          <div>
+            <p class="subheading">Top Ranked Blocks</p>
+            <div id="blocks-list" class="stack empty">尚未取得 block ranking。</div>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <p class="section-title">Prompt Payload</p>
+        <div class="payload-grid">
+          <div>
+            <p class="subheading">Article Header</p>
+            <pre id="article-header" class="code-block">-</pre>
+          </div>
+          <div>
+            <p class="subheading">Compressed Context</p>
+            <pre id="compressed-context" class="code-block">-</pre>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="diagnostics.js"></script>
+  </body>
+</html>

@@ -139,6 +139,45 @@ Chrome 要用 unpacked 模式載入資料夾，不是載入 repo 根目錄，也
 3. 選 `Load unpacked`
 4. 指到 `build/chrome-extension/`
 
+## Rust Diagnostics
+
+如果你想直接檢查 Rust Core v2 對目前分頁的判斷，可以從設定頁按 `Rust Diagnostics`。
+
+Diagnostics 頁會顯示：
+
+- page classification
+- quality warnings
+- extracted outline / blocks
+- top ranked blocks
+- compressed prompt context
+
+這個頁面會直接對目前 active tab 執行：
+
+- `classify_page(...)`
+- `extract_article_blocks(...)`
+- `process_article(...)`
+
+## Rust Fixture Regression
+
+如果你要批次檢查 Rust Core v2 的抽取與分類規則，可以執行：
+
+```bash
+bash scripts/run-rust-fixtures.sh
+```
+
+這會先 build wasm，再跑 `fixtures/rust-core-v2/manifest.json` 內定義的 fixtures，輸出：
+
+- page classification
+- confidence / safe flag
+- block count
+- prompt token usage
+- top ranked blocks
+- expectation mismatch
+
+目前 fixture 定義在：
+
+- `fixtures/rust-core-v2/manifest.json`
+
 ## 目前行為
 
-popup 會向 content script 要目前頁面的純文字內容，再交給 `summarize_article(...)`。如果目標頁面是瀏覽器內建頁面，例如 `chrome://` 或 `about:`，extension 會直接回報無法擷取。
+popup 會向 content script 要目前頁面的 HTML 與 metadata，再交給 `process_article(...)`。如果目標頁面是瀏覽器內建頁面，例如 `chrome://` 或 `about:`，extension 會直接回報無法擷取。

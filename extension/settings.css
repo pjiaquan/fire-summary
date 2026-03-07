@@ -240,6 +240,13 @@ textarea {
   padding-top: 6px;
 }
 
+.footer-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+}
+
 button {
   max-width: 200px;
   border: 0;
@@ -254,7 +261,6 @@ button {
 
 .secondary-button {
   max-width: none;
-  margin-top: 12px;
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
@@ -281,6 +287,11 @@ button:disabled {
   }
 
   .footer {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .footer-actions {
     flex-direction: column;
     align-items: stretch;
   }

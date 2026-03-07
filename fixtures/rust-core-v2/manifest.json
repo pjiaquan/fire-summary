@@ -1,0 +1,21 @@
+[
+  {
+    "id": "article",
+    "file": "article.html",
+    "title": "Rust Core V2",
+    "url": "https://example.com/rust-core-v2",
+    "lang": "en",
+    "metaDescription": "Structured extraction for browser summaries.",
+    "expectedPageType": "article",
+    "expectedSafeToSummarize": true
+  },
+  {
+    "id": "search-results",
+    "file": "search-results.html",
+    "title": "Search results for rust extension",
+    "url": "https://example.com/search?q=rust+extension",
+    "lang": "en",
+    "expectedPageType": "searchResults",
+    "expectedSafeToSummarize": false
+  }
+]

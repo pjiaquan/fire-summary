@@ -1160,6 +1160,11 @@ fn assess_quality(
         .iter()
         .filter(|block| !matches!(block.kind, BlockKind::Heading))
         .count();
+    let total_content_chars = blocks
+        .iter()
+        .filter(|block| !matches!(block.kind, BlockKind::Heading))
+        .map(|block| block.char_count)
+        .sum::<usize>();
     let heading_count = blocks
         .iter()
         .filter(|block| matches!(block.kind, BlockKind::Heading))
@@ -1174,10 +1179,10 @@ fn assess_quality(
             !matches!(block.kind, BlockKind::Heading) && block.char_count < 65
         })
         .count();
-    let avg_block_chars = if blocks.is_empty() {
+    let avg_content_block_chars = if content_blocks == 0 {
         0.0
     } else {
-        blocks.iter().map(|block| block.char_count).sum::<usize>() as f64 / blocks.len() as f64
+        total_content_chars as f64 / content_blocks as f64
     };
     let short_block_ratio = if content_blocks == 0 {
         0.0
@@ -1232,7 +1237,7 @@ fn assess_quality(
     if content_blocks < 2 {
         warnings.push("Only a small number of content blocks were extracted.".to_string());
     }
-    if avg_block_chars < 55.0 {
+    if avg_content_block_chars < 55.0 {
         warnings.push("Block density is low and may indicate a non-article page.".to_string());
     }
     if list_ratio >= 0.55 {
@@ -1252,7 +1257,7 @@ fn assess_quality(
         (PageType::ProductPage, 0.74)
     } else if listing_signal || (list_ratio >= 0.55 && heading_count == 0) {
         (PageType::ListingPage, 0.72)
-    } else if content_blocks >= 3 && avg_block_chars >= 70.0 {
+    } else if content_blocks >= 3 && avg_content_block_chars >= 70.0 {
         (PageType::Article, 0.84)
     } else {
         (PageType::GenericPage, 0.58)
