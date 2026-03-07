@@ -19,13 +19,6 @@
       "48": "icons/icon-48.png"
     }
   },
-  "commands": {
-    "_execute_browser_action": {
-      "suggested_key": {
-        "default": "Alt+X"
-      }
-    }
-  },
   "options_ui": {
     "page": "settings.html",
     "open_in_tab": true
