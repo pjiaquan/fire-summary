@@ -63,14 +63,30 @@
 
         <label class="field">
           <span class="label">Target Language</span>
-          <input
-            id="target-language"
-            name="targetLanguage"
-            type="text"
-            list="target-language-options"
-            placeholder="選擇或輸入目標語言"
-          />
-          <datalist id="target-language-options"></datalist>
+          <div id="target-language-combobox" class="combo-field">
+            <div class="combo-input-row">
+              <input
+                id="target-language"
+                name="targetLanguage"
+                type="text"
+                placeholder="搜尋或選擇目標語言"
+                autocomplete="off"
+                aria-autocomplete="list"
+                aria-controls="target-language-options"
+                aria-expanded="false"
+              />
+              <button
+                id="target-language-toggle"
+                class="combo-toggle"
+                type="button"
+                aria-label="顯示目標語言選單"
+              >
+                ▾
+              </button>
+            </div>
+            <div id="target-language-options" class="combo-options" role="listbox"></div>
+          </div>
+          <span class="hint">輸入關鍵字可搜尋，也可以直接從下拉清單選擇。</span>
         </label>
 
         <label class="field">

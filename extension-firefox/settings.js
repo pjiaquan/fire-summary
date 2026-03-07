@@ -7,7 +7,9 @@ const modelInput = document.getElementById("model");
 const fallbackModelInput = document.getElementById("fallback-model");
 const apiKeyInput = document.getElementById("api-key");
 const targetLanguageInput = document.getElementById("target-language");
+const targetLanguageCombobox = document.getElementById("target-language-combobox");
 const targetLanguageOptions = document.getElementById("target-language-options");
+const targetLanguageToggle = document.getElementById("target-language-toggle");
 const customPromptInput = document.getElementById("custom-prompt");
 const fontSizeInput = document.getElementById("font-size");
 const titleFontInput = document.getElementById("title-font");
@@ -175,10 +177,112 @@ function setSaveStatus(message) {
   saveStatus.textContent = message;
 }
 
-function populateTargetLanguageOptions() {
-  targetLanguageOptions.innerHTML = WORLD_LANGUAGES.map(
-    (language) => `<option value="${language}"></option>`
-  ).join("");
+function escapeHtml(text) {
+  return String(text)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
+function normalizeSearchText(text) {
+  return String(text || "").trim().toLocaleLowerCase();
+}
+
+function setTargetLanguageDropdownOpen(isOpen) {
+  targetLanguageCombobox.classList.toggle("open", isOpen);
+  targetLanguageInput.setAttribute("aria-expanded", String(isOpen));
+}
+
+function getFilteredLanguages(query) {
+  const normalizedQuery = normalizeSearchText(query);
+  if (!normalizedQuery) {
+    return WORLD_LANGUAGES;
+  }
+
+  return WORLD_LANGUAGES.filter((language) =>
+    normalizeSearchText(language).includes(normalizedQuery)
+  );
+}
+
+function renderTargetLanguageOptions(query = "") {
+  const filteredLanguages = getFilteredLanguages(query);
+  if (filteredLanguages.length === 0) {
+    targetLanguageOptions.innerHTML = '<div class="combo-empty">找不到符合的語言</div>';
+    return;
+  }
+
+  targetLanguageOptions.innerHTML = filteredLanguages
+    .map((language) => {
+      const selectedClass = language === targetLanguageInput.value ? " selected" : "";
+      return `<button type="button" class="combo-option${selectedClass}" data-language="${escapeHtml(
+        language
+      )}">${escapeHtml(language)}</button>`;
+    })
+    .join("");
+}
+
+function initializeTargetLanguageCombobox() {
+  renderTargetLanguageOptions(targetLanguageInput.value);
+
+  targetLanguageInput.addEventListener("focus", () => {
+    renderTargetLanguageOptions(targetLanguageInput.value);
+    setTargetLanguageDropdownOpen(true);
+  });
+
+  targetLanguageInput.addEventListener("input", () => {
+    renderTargetLanguageOptions(targetLanguageInput.value);
+    setTargetLanguageDropdownOpen(true);
+  });
+
+  targetLanguageInput.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") {
+      setTargetLanguageDropdownOpen(false);
+      return;
+    }
+
+    if (event.key === "Enter") {
+      const firstOption = targetLanguageOptions.querySelector(".combo-option");
+      if (!firstOption) {
+        return;
+      }
+
+      event.preventDefault();
+      targetLanguageInput.value = firstOption.dataset.language || targetLanguageInput.value;
+      renderTargetLanguageOptions(targetLanguageInput.value);
+      setTargetLanguageDropdownOpen(false);
+    }
+  });
+
+  targetLanguageToggle.addEventListener("click", () => {
+    const nextOpenState = !targetLanguageCombobox.classList.contains("open");
+    renderTargetLanguageOptions(targetLanguageInput.value);
+    setTargetLanguageDropdownOpen(nextOpenState);
+    if (nextOpenState) {
+      targetLanguageInput.focus();
+    }
+  });
+
+  targetLanguageOptions.addEventListener("click", (event) => {
+    const option = event.target.closest(".combo-option");
+    if (!(option instanceof HTMLElement)) {
+      return;
+    }
+
+    targetLanguageInput.value = option.dataset.language || "";
+    renderTargetLanguageOptions(targetLanguageInput.value);
+    setTargetLanguageDropdownOpen(false);
+    targetLanguageInput.focus();
+  });
+
+  document.addEventListener("pointerdown", (event) => {
+    if (targetLanguageCombobox.contains(event.target)) {
+      return;
+    }
+
+    setTargetLanguageDropdownOpen(false);
+  });
 }
 
 function pickStoredValue(value, allowedValues, fallback) {
@@ -244,7 +348,7 @@ function storageRemove(keys) {
 
 async function loadSettings() {
   setSaveStatus("讀取設定中...");
-  populateTargetLanguageOptions();
+  renderTargetLanguageOptions(targetLanguageInput.value);
   customPromptInput.placeholder = DEFAULT_SYSTEM_PROMPT;
 
   try {
@@ -254,6 +358,7 @@ async function loadSettings() {
     fallbackModelInput.value = settings.fallbackModel || DEFAULT_SETTINGS.fallbackModel;
     apiKeyInput.value = settings.apiKey || "";
     targetLanguageInput.value = settings.targetLanguage || DEFAULT_SETTINGS.targetLanguage;
+    renderTargetLanguageOptions(targetLanguageInput.value);
     customPromptInput.value = settings.customPrompt || "";
     fontSizeInput.value = settings.fontSize || DEFAULT_SETTINGS.fontSize;
     titleFontInput.value = pickStoredValue(
@@ -341,4 +446,5 @@ clearCacheButton.addEventListener("click", async () => {
   }
 });
 
+initializeTargetLanguageCombobox();
 loadSettings();

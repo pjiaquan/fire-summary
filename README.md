@@ -21,6 +21,25 @@ bash scripts/build-extension.sh
 這會把輸出放到 `extension/pkg/`。
 同時也會同步到 `extension-firefox/pkg/`。
 
+## Package Release
+
+如果要產出可提交的 release 壓縮檔，在 repo 根目錄執行：
+
+```bash
+bash scripts/package-extension.sh
+```
+
+這會先重新 build wasm，然後輸出：
+
+- `dist/fire-summary-chrome-v<version>.zip`
+- `dist/fire-summary-firefox-v<version>.zip`
+
+## Privacy
+
+上架商店可直接引用 repo 內的隱私政策文件：
+
+- `PRIVACY.md`
+
 ## 載入到 Chrome
 
 1. 開啟 `chrome://extensions`
