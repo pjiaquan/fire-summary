@@ -178,6 +178,7 @@ pub struct QualityReport {
 pub enum PageType {
     Article,
     Selection,
+    DocsPage,
     SearchResults,
     ListingPage,
     ProductPage,
@@ -1222,6 +1223,17 @@ fn assess_quality(
                     || block.text.to_ascii_lowercase().starts_with("a:"))
         })
         .count();
+    let code_like_blocks = blocks
+        .iter()
+        .filter(|block| {
+            matches!(block.kind, BlockKind::Code)
+                || block.text.contains("fn ")
+                || block.text.contains("const ")
+                || block.text.contains("import ")
+                || block.text.contains("```")
+                || block.text.contains("bash ")
+        })
+        .count();
     let lower_title = title.unwrap_or_default().to_ascii_lowercase();
     let lower_url = url.unwrap_or_default().to_ascii_lowercase();
     let search_signal = lower_url.contains("/search")
@@ -1247,6 +1259,13 @@ fn assess_quality(
         || lower_title.contains("forum")
         || lower_title.contains("discussion")
         || lower_title.contains("thread");
+    let docs_signal = lower_url.contains("/docs")
+        || lower_url.contains("/guide")
+        || lower_url.contains("/reference")
+        || lower_title.contains("documentation")
+        || lower_title.contains("guide")
+        || lower_title.contains("reference")
+        || lower_title.contains("getting started");
 
     if cleaned_chars < 220 {
         warnings.push("Extracted article text is short.".to_string());
@@ -1270,6 +1289,8 @@ fn assess_quality(
         (PageType::SparsePage, 0.32)
     } else if search_signal && (list_ratio >= 0.35 || short_block_ratio >= 0.45) {
         (PageType::SearchResults, 0.84)
+    } else if docs_signal && (heading_count >= 1 || code_like_blocks >= 1) {
+        (PageType::DocsPage, 0.82)
     } else if product_signal && numeric_block_ratio >= 0.25 {
         (PageType::ProductPage, 0.74)
     } else if discussion_signal && (question_like_blocks >= 2 || short_block_ratio >= 0.35) {
@@ -1297,6 +1318,9 @@ fn assess_quality(
     if matches!(page_type, PageType::ProductPage) {
         warnings.push("This page looks like a product or pricing page, so summary quality may be less article-like.".to_string());
     }
+    if matches!(page_type, PageType::DocsPage) {
+        warnings.push("This page looks like documentation, so the best summary may focus on steps, APIs, and reference details.".to_string());
+    }
     if matches!(page_type, PageType::DiscussionThread) {
         warnings.push("This page looks like a discussion thread, so the extracted content may mix multiple speakers and viewpoints.".to_string());
     }
@@ -1304,7 +1328,7 @@ fn assess_quality(
     QualityReport {
         page_type: page_type.clone(),
         confidence: confidence.clamp(0.0, 0.99),
-        safe_to_summarize: matches!(page_type, PageType::Article | PageType::Selection)
+        safe_to_summarize: matches!(page_type, PageType::Article | PageType::Selection | PageType::DocsPage)
             || (matches!(page_type, PageType::GenericPage) && cleaned_chars >= 260),
         warnings,
     }
@@ -1630,6 +1654,7 @@ mod tests {
     const ARTICLE_FIXTURE: &str = include_str!("../fixtures/rust-core-v2/article.html");
     const DISCUSSION_THREAD_FIXTURE: &str =
         include_str!("../fixtures/rust-core-v2/discussion-thread.html");
+    const DOCS_PAGE_FIXTURE: &str = include_str!("../fixtures/rust-core-v2/docs-page.html");
     const SEARCH_RESULTS_FIXTURE: &str =
         include_str!("../fixtures/rust-core-v2/search-results.html");
 
@@ -1737,5 +1762,29 @@ mod tests {
 
         assert!(matches!(result.quality.page_type, PageType::DiscussionThread));
         assert!(!result.quality.safe_to_summarize);
+    }
+
+    #[test]
+    fn process_article_classifies_docs_pages() {
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/docs/rust-core-diagnostics".to_string()),
+            title: Some("Getting Started with Rust Core Diagnostics".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: None,
+            html: Some(DOCS_PAGE_FIXTURE.to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
+        })
+        .expect("docs page should be processed");
+
+        assert!(matches!(result.quality.page_type, PageType::DocsPage));
+        assert!(result.quality.safe_to_summarize);
     }
 }

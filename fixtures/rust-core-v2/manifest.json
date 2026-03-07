@@ -19,6 +19,15 @@
     "expectedSafeToSummarize": false
   },
   {
+    "id": "docs-page",
+    "file": "docs-page.html",
+    "title": "Getting Started with Rust Core Diagnostics",
+    "url": "https://example.com/docs/rust-core-diagnostics",
+    "lang": "en",
+    "expectedPageType": "docsPage",
+    "expectedSafeToSummarize": true
+  },
+  {
     "id": "listing-page",
     "file": "listing-page.html",
     "title": "Latest posts",

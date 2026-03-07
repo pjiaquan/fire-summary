@@ -101,6 +101,8 @@ function getPageTypeLabel(pageType) {
       return "文章頁";
     case "selection":
       return "選取內容";
+    case "docsPage":
+      return "文件頁";
     case "searchResults":
       return "搜尋結果頁";
     case "listingPage":
