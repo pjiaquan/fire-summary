@@ -156,6 +156,9 @@ pub struct QualityReport {
 pub enum PageType {
     Article,
     Selection,
+    SearchResults,
+    ListingPage,
+    ProductPage,
     SparsePage,
     GenericPage,
 }
@@ -276,12 +279,22 @@ fn process_article_input(input: ArticleInput) -> Result<ProcessingOutput, String
 
     let extracted = if let Some(selection) = selection_text.clone() {
         if selection.chars().count() >= MIN_SELECTION_CHARS {
-            build_selection_extraction(&selection)
+            build_selection_extraction(&selection, title.as_deref(), source_url.as_deref())
         } else {
-            extract_from_page(&input.html, &input.text_content)
+            extract_from_page(
+                &input.html,
+                &input.text_content,
+                title.as_deref(),
+                source_url.as_deref(),
+            )
         }
     } else {
-        extract_from_page(&input.html, &input.text_content)
+        extract_from_page(
+            &input.html,
+            &input.text_content,
+            title.as_deref(),
+            source_url.as_deref(),
+        )
     };
 
     let extracted = extracted.ok_or_else(|| "no usable article text".to_string())?;
@@ -339,7 +352,11 @@ fn process_article_input(input: ArticleInput) -> Result<ProcessingOutput, String
     })
 }
 
-fn build_selection_extraction(selection_text: &str) -> Option<StructuredExtraction> {
+fn build_selection_extraction(
+    selection_text: &str,
+    title: Option<&str>,
+    url: Option<&str>,
+) -> Option<StructuredExtraction> {
     let mut blocks = Vec::new();
 
     for (index, paragraph) in selection_text
@@ -379,12 +396,7 @@ fn build_selection_extraction(selection_text: &str) -> Option<StructuredExtracti
     }
 
     let cleaned_text = join_block_text(&blocks);
-    let quality = QualityReport {
-        page_type: PageType::Selection,
-        confidence: 0.98,
-        warnings: Vec::new(),
-        safe_to_summarize: true,
-    };
+    let quality = assess_quality(&blocks, &cleaned_text, "selection", title, url);
 
     Some(StructuredExtraction {
         outline: build_outline(&blocks),
@@ -395,9 +407,14 @@ fn build_selection_extraction(selection_text: &str) -> Option<StructuredExtracti
     })
 }
 
-fn extract_from_page(html: &Option<String>, text_content: &Option<String>) -> Option<StructuredExtraction> {
+fn extract_from_page(
+    html: &Option<String>,
+    text_content: &Option<String>,
+    title: Option<&str>,
+    url: Option<&str>,
+) -> Option<StructuredExtraction> {
     if let Some(html) = html.as_deref() {
-        if let Some(extracted) = extract_structured_from_html(html) {
+        if let Some(extracted) = extract_structured_from_html(html, title, url) {
             return Some(extracted);
         }
     }
@@ -418,7 +435,7 @@ fn extract_from_page(html: &Option<String>, text_content: &Option<String>) -> Op
         position: 0,
     };
     let blocks = vec![block];
-    let quality = assess_quality(&blocks, &cleaned_text, "text-fallback");
+    let quality = assess_quality(&blocks, &cleaned_text, "text-fallback", title, url);
 
     Some(StructuredExtraction {
         outline: Vec::new(),
@@ -430,12 +447,16 @@ fn extract_from_page(html: &Option<String>, text_content: &Option<String>) -> Op
 }
 
 fn extract_main_text_from_html(html: &str) -> String {
-    extract_structured_from_html(html)
+    extract_structured_from_html(html, None, None)
         .map(|extracted| extracted.cleaned_text)
         .unwrap_or_default()
 }
 
-fn extract_structured_from_html(html: &str) -> Option<StructuredExtraction> {
+fn extract_structured_from_html(
+    html: &str,
+    title: Option<&str>,
+    url: Option<&str>,
+) -> Option<StructuredExtraction> {
     let document = Html::parse_document(html);
     let best_candidate = find_best_candidate(&document);
 
@@ -460,7 +481,7 @@ fn extract_structured_from_html(html: &str) -> Option<StructuredExtraction> {
     }
 
     let cleaned_text = truncate_chars(&join_block_text(&blocks), MAX_SOURCE_CHARS);
-    let quality = assess_quality(&blocks, &cleaned_text, source);
+    let quality = assess_quality(&blocks, &cleaned_text, source, title, url);
 
     Some(StructuredExtraction {
         outline: build_outline(&blocks),
@@ -827,10 +848,20 @@ fn rank_blocks(
             let title_overlap = overlap_score(&tokens, &title_tokens);
             let excerpt_overlap = overlap_score(&tokens, &excerpt_tokens);
             let position_bonus = 1.8 / (block.position as f64 + 1.0);
-            let heading_bonus = if block.heading_path.is_empty() { 0.0 } else { 0.9 };
+            let heading_bonus = if block.heading_path.is_empty() {
+                0.0
+            } else {
+                0.65 + (block.heading_path.len().min(3) as f64 * 0.12)
+            };
             let length_bonus = match block.char_count {
                 70..=280 => 0.8,
                 281..=500 => 0.45,
+                _ => 0.0,
+            };
+            let sentence_count = split_sentences(&block.text).len();
+            let sentence_bonus = match sentence_count {
+                2..=4 => 0.5,
+                5..=6 => 0.25,
                 _ => 0.0,
             };
             let number_bonus = if block.text.chars().any(|ch| ch.is_ascii_digit()) {
@@ -838,6 +869,14 @@ fn rank_blocks(
             } else {
                 0.0
             };
+            let list_penalty = if matches!(block.kind, BlockKind::ListItem) {
+                0.35
+            } else {
+                0.0
+            };
+            let unique_token_ratio = tokens.iter().collect::<HashSet<_>>().len() as f64
+                / tokens.len() as f64;
+            let novelty_bonus = if unique_token_ratio >= 0.72 { 0.25 } else { 0.0 };
 
             let score = token_score
                 + title_overlap * 2.8
@@ -846,6 +885,7 @@ fn rank_blocks(
                 + heading_bonus
                 + length_bonus
                 + number_bonus;
+            let score = score + sentence_bonus + novelty_bonus - list_penalty;
             let mut reasons = Vec::new();
             if title_overlap > 0.0 {
                 reasons.push("title-overlap".to_string());
@@ -858,6 +898,15 @@ fn rank_blocks(
             }
             if !block.heading_path.is_empty() {
                 reasons.push("section-context".to_string());
+            }
+            if sentence_bonus > 0.0 {
+                reasons.push("multi-sentence-density".to_string());
+            }
+            if novelty_bonus > 0.0 {
+                reasons.push("high-novelty".to_string());
+            }
+            if matches!(block.kind, BlockKind::ListItem) {
+                reasons.push("list-item".to_string());
             }
 
             Some(RankedBlock {
@@ -1013,18 +1062,84 @@ fn format_quality_note(quality: &QualityReport) -> String {
     lines.join("\n")
 }
 
-fn assess_quality(blocks: &[ArticleBlock], cleaned_text: &str, source: &str) -> QualityReport {
+fn assess_quality(
+    blocks: &[ArticleBlock],
+    cleaned_text: &str,
+    source: &str,
+    title: Option<&str>,
+    url: Option<&str>,
+) -> QualityReport {
     let mut warnings = Vec::new();
     let cleaned_chars = cleaned_text.chars().count();
     let content_blocks = blocks
         .iter()
         .filter(|block| !matches!(block.kind, BlockKind::Heading))
         .count();
+    let heading_count = blocks
+        .iter()
+        .filter(|block| matches!(block.kind, BlockKind::Heading))
+        .count();
+    let list_item_count = blocks
+        .iter()
+        .filter(|block| matches!(block.kind, BlockKind::ListItem))
+        .count();
+    let short_content_blocks = blocks
+        .iter()
+        .filter(|block| {
+            !matches!(block.kind, BlockKind::Heading) && block.char_count < 65
+        })
+        .count();
     let avg_block_chars = if blocks.is_empty() {
         0.0
     } else {
         blocks.iter().map(|block| block.char_count).sum::<usize>() as f64 / blocks.len() as f64
     };
+    let short_block_ratio = if content_blocks == 0 {
+        0.0
+    } else {
+        short_content_blocks as f64 / content_blocks as f64
+    };
+    let list_ratio = if content_blocks == 0 {
+        0.0
+    } else {
+        list_item_count as f64 / content_blocks as f64
+    };
+    let numeric_block_ratio = if content_blocks == 0 {
+        0.0
+    } else {
+        blocks
+            .iter()
+            .filter(|block| {
+                !matches!(block.kind, BlockKind::Heading)
+                    && block.text.chars().filter(|ch| ch.is_ascii_digit()).count() >= 3
+            })
+            .count() as f64
+            / content_blocks as f64
+    };
+    let unique_sections = blocks
+        .iter()
+        .filter_map(|block| block.heading_path.last().cloned())
+        .collect::<HashSet<_>>()
+        .len();
+    let lower_title = title.unwrap_or_default().to_ascii_lowercase();
+    let lower_url = url.unwrap_or_default().to_ascii_lowercase();
+    let search_signal = lower_url.contains("/search")
+        || lower_url.contains("?q=")
+        || lower_url.contains("&q=")
+        || lower_title.contains("search")
+        || lower_title.contains("results");
+    let listing_signal = lower_url.contains("/tag/")
+        || lower_url.contains("/category/")
+        || lower_url.contains("/archive")
+        || lower_title.contains("latest")
+        || lower_title.contains("top stories")
+        || lower_title.contains("all posts");
+    let product_signal = lower_url.contains("/product")
+        || lower_url.contains("/shop")
+        || lower_url.contains("/pricing")
+        || lower_title.contains("buy")
+        || lower_title.contains("price")
+        || lower_title.contains("pricing");
 
     if cleaned_chars < 220 {
         warnings.push("Extracted article text is short.".to_string());
@@ -1035,29 +1150,50 @@ fn assess_quality(blocks: &[ArticleBlock], cleaned_text: &str, source: &str) -> 
     if avg_block_chars < 55.0 {
         warnings.push("Block density is low and may indicate a non-article page.".to_string());
     }
+    if list_ratio >= 0.55 {
+        warnings.push("This page is dominated by list-style blocks.".to_string());
+    }
+    if short_block_ratio >= 0.6 {
+        warnings.push("Many extracted blocks are very short.".to_string());
+    }
 
     let (page_type, mut confidence): (PageType, f64) = if source == "selection" {
         (PageType::Selection, 0.98)
     } else if cleaned_chars < 180 {
         (PageType::SparsePage, 0.32)
+    } else if search_signal && (list_ratio >= 0.35 || short_block_ratio >= 0.45) {
+        (PageType::SearchResults, 0.84)
+    } else if product_signal && numeric_block_ratio >= 0.25 {
+        (PageType::ProductPage, 0.74)
+    } else if listing_signal || (list_ratio >= 0.55 && heading_count == 0) {
+        (PageType::ListingPage, 0.72)
     } else if content_blocks >= 3 && avg_block_chars >= 70.0 {
         (PageType::Article, 0.84)
     } else {
         (PageType::GenericPage, 0.58)
     };
 
-    if blocks.iter().any(|block| matches!(block.kind, BlockKind::Heading)) {
+    if heading_count > 0 {
         confidence += 0.08;
+    }
+    if unique_sections >= 2 {
+        confidence += 0.05;
     }
     if !warnings.is_empty() {
         confidence -= 0.08;
+    }
+    if matches!(page_type, PageType::SearchResults | PageType::ListingPage) {
+        warnings.push("This page looks more like a navigation or discovery surface than a single article.".to_string());
+    }
+    if matches!(page_type, PageType::ProductPage) {
+        warnings.push("This page looks like a product or pricing page, so summary quality may be less article-like.".to_string());
     }
 
     QualityReport {
         page_type: page_type.clone(),
         confidence: confidence.clamp(0.0, 0.99),
         safe_to_summarize: matches!(page_type, PageType::Article | PageType::Selection)
-            || cleaned_chars >= 260,
+            || (matches!(page_type, PageType::GenericPage) && cleaned_chars >= 260),
         warnings,
     }
 }
@@ -1449,5 +1585,42 @@ mod tests {
             .prompt_payload
             .selection_strategy
             .starts_with("ranked-blocks"));
+    }
+
+    #[test]
+    fn process_article_classifies_search_results_pages() {
+        let html = r#"
+        <html>
+          <body>
+            <main>
+              <p>Rust wasm browser extension patterns</p>
+              <p>Fire Summary GitHub repository and release workflow notes</p>
+              <p>Prompt engineering techniques for article summarization</p>
+              <p>Extension packaging tips for Firefox Android and desktop</p>
+            </main>
+          </body>
+        </html>
+        "#;
+
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/search?q=rust+extension".to_string()),
+            title: Some("Search results for rust extension".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: None,
+            html: Some(html.to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
+        })
+        .expect("search result page should still be processed");
+
+        assert!(matches!(result.quality.page_type, PageType::SearchResults));
+        assert!(!result.quality.safe_to_summarize);
     }
 }

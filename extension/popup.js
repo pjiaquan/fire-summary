@@ -93,6 +93,38 @@ function setSummaryMessage(message) {
   summaryNode.textContent = message;
 }
 
+function getPageTypeLabel(pageType) {
+  switch (pageType) {
+    case "article":
+      return "文章頁";
+    case "selection":
+      return "選取內容";
+    case "searchResults":
+      return "搜尋結果頁";
+    case "listingPage":
+      return "列表頁";
+    case "productPage":
+      return "產品頁";
+    case "sparsePage":
+      return "內容稀少頁";
+    case "genericPage":
+      return "一般頁面";
+    default:
+      return "未知頁面";
+  }
+}
+
+function formatQualityStatus(quality) {
+  if (!quality || typeof quality !== "object") {
+    return "";
+  }
+
+  const label = getPageTypeLabel(quality.pageType);
+  return quality.safeToSummarize
+    ? `頁面判斷：${label}`
+    : `頁面判斷：${label}，可能不是典型文章`;
+}
+
 function applyFontSize(fontSize) {
   const nextSize = ["small", "medium", "large"].includes(fontSize) ? fontSize : "medium";
   document.body.dataset.fontSize = nextSize;
@@ -1226,6 +1258,7 @@ async function summarizeCurrentPage() {
       latestProcessedArticle = bundle.processedArticle;
       latestArticleText = bundle.processedArticle.cleaned_text || "";
       latestArticleUrl = bundle.url;
+      const qualityStatus = formatQualityStatus(bundle.processedArticle.quality);
 
       let cacheKey = "";
       if (settings.summaryCacheEnabled) {
@@ -1242,14 +1275,18 @@ async function summarizeCurrentPage() {
             latestSummaryTitle,
             latestSummaryModel
           );
-          setStatus(`已命中快取：${latestSummaryModel}`);
+          setStatus(
+            [qualityStatus, `已命中快取：${latestSummaryModel}`].filter(Boolean).join("，")
+          );
           maybeAutoExportSummary(settings);
           return;
         }
       }
 
       setStatus(
-        settings.streamOutput ? "摘要串流中..." : "呼叫 Gemini API 中...",
+        [qualityStatus, settings.streamOutput ? "摘要串流中..." : "呼叫 Gemini API 中..."]
+          .filter(Boolean)
+          .join("，"),
         { loading: settings.streamOutput }
       );
 
@@ -1283,7 +1320,14 @@ async function summarizeCurrentPage() {
       );
 
       setStatus(
-        `${usedFallback ? "fallback" : "來源"}：${usedModel}，共 ${bundle.processedArticle.stats.cleaned_chars} 字`
+        [
+          qualityStatus,
+          `${usedFallback ? "fallback" : "來源"}：${usedModel}，共 ${
+            bundle.processedArticle.stats.cleaned_chars
+          } 字`,
+        ]
+          .filter(Boolean)
+          .join("，")
       );
       maybeAutoExportSummary(settings);
     } catch (error) {
