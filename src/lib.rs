@@ -181,6 +181,7 @@ pub enum PageType {
     SearchResults,
     ListingPage,
     ProductPage,
+    DiscussionThread,
     SparsePage,
     GenericPage,
 }
@@ -1211,6 +1212,16 @@ fn assess_quality(
         .filter_map(|block| block.heading_path.last().cloned())
         .collect::<HashSet<_>>()
         .len();
+    let question_like_blocks = blocks
+        .iter()
+        .filter(|block| {
+            !matches!(block.kind, BlockKind::Heading)
+                && (block.text.contains('?')
+                    || block.text.contains('？')
+                    || block.text.to_ascii_lowercase().starts_with("q:")
+                    || block.text.to_ascii_lowercase().starts_with("a:"))
+        })
+        .count();
     let lower_title = title.unwrap_or_default().to_ascii_lowercase();
     let lower_url = url.unwrap_or_default().to_ascii_lowercase();
     let search_signal = lower_url.contains("/search")
@@ -1230,6 +1241,12 @@ fn assess_quality(
         || lower_title.contains("buy")
         || lower_title.contains("price")
         || lower_title.contains("pricing");
+    let discussion_signal = lower_url.contains("/forum")
+        || lower_url.contains("/discussion")
+        || lower_url.contains("/thread")
+        || lower_title.contains("forum")
+        || lower_title.contains("discussion")
+        || lower_title.contains("thread");
 
     if cleaned_chars < 220 {
         warnings.push("Extracted article text is short.".to_string());
@@ -1255,6 +1272,8 @@ fn assess_quality(
         (PageType::SearchResults, 0.84)
     } else if product_signal && numeric_block_ratio >= 0.25 {
         (PageType::ProductPage, 0.74)
+    } else if discussion_signal && (question_like_blocks >= 2 || short_block_ratio >= 0.35) {
+        (PageType::DiscussionThread, 0.76)
     } else if listing_signal || (list_ratio >= 0.55 && heading_count == 0) {
         (PageType::ListingPage, 0.72)
     } else if content_blocks >= 3 && avg_content_block_chars >= 70.0 {
@@ -1277,6 +1296,9 @@ fn assess_quality(
     }
     if matches!(page_type, PageType::ProductPage) {
         warnings.push("This page looks like a product or pricing page, so summary quality may be less article-like.".to_string());
+    }
+    if matches!(page_type, PageType::DiscussionThread) {
+        warnings.push("This page looks like a discussion thread, so the extracted content may mix multiple speakers and viewpoints.".to_string());
     }
 
     QualityReport {
@@ -1606,6 +1628,8 @@ mod tests {
     use super::*;
 
     const ARTICLE_FIXTURE: &str = include_str!("../fixtures/rust-core-v2/article.html");
+    const DISCUSSION_THREAD_FIXTURE: &str =
+        include_str!("../fixtures/rust-core-v2/discussion-thread.html");
     const SEARCH_RESULTS_FIXTURE: &str =
         include_str!("../fixtures/rust-core-v2/search-results.html");
 
@@ -1688,6 +1712,30 @@ mod tests {
         .expect("search result page should still be processed");
 
         assert!(matches!(result.quality.page_type, PageType::SearchResults));
+        assert!(!result.quality.safe_to_summarize);
+    }
+
+    #[test]
+    fn process_article_classifies_discussion_threads() {
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/forum/thread/rust-article-extraction".to_string()),
+            title: Some("Forum discussion about Rust article extraction".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: None,
+            html: Some(DISCUSSION_THREAD_FIXTURE.to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
+        })
+        .expect("discussion thread should be processed");
+
+        assert!(matches!(result.quality.page_type, PageType::DiscussionThread));
         assert!(!result.quality.safe_to_summarize);
     }
 }

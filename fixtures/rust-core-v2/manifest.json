@@ -37,6 +37,15 @@
     "expectedSafeToSummarize": false
   },
   {
+    "id": "discussion-thread",
+    "file": "discussion-thread.html",
+    "title": "Forum discussion about Rust article extraction",
+    "url": "https://example.com/forum/thread/rust-article-extraction",
+    "lang": "en",
+    "expectedPageType": "discussionThread",
+    "expectedSafeToSummarize": false
+  },
+  {
     "id": "sparse-page",
     "file": "sparse-page.html",
     "title": "Sign in",

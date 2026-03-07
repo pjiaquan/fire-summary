@@ -105,6 +105,8 @@ function getPageTypeLabel(pageType) {
       return "列表頁";
     case "productPage":
       return "產品頁";
+    case "discussionThread":
+      return "討論串";
     case "sparsePage":
       return "內容稀少頁";
     case "genericPage":
