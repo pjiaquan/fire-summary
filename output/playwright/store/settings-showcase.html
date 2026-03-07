@@ -89,25 +89,30 @@
         <section class="cache-box">
           <p class="label">API Parameters</p>
           <p class="hint">可調整 temperature、topP、topK、max output tokens 與 Google Search grounding。</p>
+          <p class="hint">如果你不確定怎麼選，大多數情況維持預設就好。通常只需要先調 Temperature。</p>
           <div class="field-grid">
             <label class="field">
               <span class="label">Temperature</span>
               <input type="number" value="0.3" />
+              <span class="hint">越低越穩定，越高越發散。摘要通常建議低一點。</span>
             </label>
 
             <label class="field">
               <span class="label">Top P</span>
               <input type="number" value="0.95" />
+              <span class="hint">控制候選詞範圍。大多數情況留空或維持預設即可。</span>
             </label>
 
             <label class="field">
               <span class="label">Top K</span>
               <input type="number" value="40" />
+              <span class="hint">限制每一步考慮的候選詞數量。一般不需要改。</span>
             </label>
 
             <label class="field">
               <span class="label">Max Output Tokens</span>
               <input type="number" value="2048" />
+              <span class="hint">控制最長回覆長度。太高會增加成本，摘要通常 1024 到 2048 就夠。</span>
             </label>
           </div>
         </section>

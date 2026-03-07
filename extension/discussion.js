@@ -1,11 +1,14 @@
 const api = globalThis.browser ?? globalThis.chrome;
 const DISCUSSION_CONTEXT_KEY = "__discussionContext";
 const DISCUSSION_STATE_KEY = "__discussionState";
+const SESSION_API_KEY_KEY = "__sessionApiKey";
+const MAX_OUTPUT_TOKENS_LIMIT = 8192;
 const DEFAULT_SETTINGS = {
   provider: "google_gemini",
   model: "gemini-3.1-flash-lite-preview",
   fallbackModel: "gemini-2.5-flash",
   apiKey: "",
+  rememberApiKey: false,
   temperature: "0.3",
   topP: "",
   topK: "",
@@ -20,6 +23,7 @@ const DEFAULT_SETTINGS = {
   streamOutput: false,
   enableGoogleSearch: false,
   autoExportTxt: false,
+  summaryCacheEnabled: true,
 };
 const FONT_FAMILY_MAP = {
   pingfang:
@@ -86,6 +90,33 @@ function storageSet(items) {
       }
 
       resolve();
+    });
+  });
+}
+
+function sessionStorageAvailable() {
+  return Boolean(api.storage?.session);
+}
+
+function sessionStorageGet(defaults) {
+  if (!sessionStorageAvailable()) {
+    return Promise.resolve({ ...defaults });
+  }
+
+  const maybePromise = api.storage.session.get(defaults);
+  if (maybePromise && typeof maybePromise.then === "function") {
+    return maybePromise;
+  }
+
+  return new Promise((resolve, reject) => {
+    api.storage.session.get(defaults, (result) => {
+      const lastError = api.runtime?.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message));
+        return;
+      }
+
+      resolve(result);
     });
   });
 }
@@ -160,7 +191,7 @@ function buildGenerationConfig(settings, defaultTemperature) {
   if (String(settings.maxOutputTokens ?? "").trim()) {
     generationConfig.maxOutputTokens = parseGenerationNumber(settings.maxOutputTokens, {
       min: 1,
-      max: 65536,
+      max: MAX_OUTPUT_TOKENS_LIMIT,
       fallback: 2048,
       integer: true,
     });
@@ -557,7 +588,16 @@ async function loadDiscussionState() {
 }
 
 async function loadSettings() {
-  return storageGet(DEFAULT_SETTINGS);
+  const settings = await storageGet(DEFAULT_SETTINGS);
+  if (settings.apiKey) {
+    return settings;
+  }
+
+  const sessionValues = await sessionStorageGet({ [SESSION_API_KEY_KEY]: "" });
+  return {
+    ...settings,
+    apiKey: sessionValues[SESSION_API_KEY_KEY] || "",
+  };
 }
 
 async function saveDiscussionState() {

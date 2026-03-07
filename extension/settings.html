@@ -65,11 +65,21 @@
           >
             前往 Google AI Studio 取得 API Key
           </a>
+          <span class="hint">預設只保留在目前瀏覽器 session。只有勾選 Remember API Key 才會長期保存。</span>
+        </label>
+
+        <label class="toggle-field" for="remember-api-key">
+          <span>
+            <span class="label">Remember API Key</span>
+            <span class="hint">關閉時會優先使用 session storage；若瀏覽器不支援，才退回 extension storage。</span>
+          </span>
+          <input id="remember-api-key" name="rememberApiKey" type="checkbox" />
         </label>
 
         <section class="cache-box">
           <p class="label">API Parameters</p>
-          <p class="hint">控制 Gemini 生成參數。搜尋功能只會在支援的模型上生效。</p>
+          <p class="hint">控制 Gemini 生成參數。搜尋功能只會在支援的模型上生效，並可能增加資料外送範圍。</p>
+          <p class="hint">如果你不確定怎麼選，大多數情況維持預設就好。通常只需要先調 `Temperature`。</p>
           <div class="field-grid">
             <label class="field">
               <span class="label">Temperature</span>
@@ -82,6 +92,7 @@
                 step="0.05"
                 placeholder="0.3"
               />
+              <span class="hint">控制回覆的穩定度與創意。越低越穩定、越高越發散；摘要通常建議用低一點，例如 `0.2` 到 `0.5`。</span>
             </label>
 
             <label class="field">
@@ -95,6 +106,7 @@
                 step="0.05"
                 placeholder="留空代表使用模型預設"
               />
+              <span class="hint">控制模型從多大範圍的候選詞中挑選。通常留空即可；只有在你想更保守或更發散時才需要調整。</span>
             </label>
 
             <label class="field">
@@ -107,6 +119,7 @@
                 step="1"
                 placeholder="留空代表使用模型預設"
               />
+              <span class="hint">限制每一步最多考慮多少個候選詞。一般使用者通常不需要改，留空讓模型用自己的預設最穩。</span>
             </label>
 
             <label class="field">
@@ -116,9 +129,11 @@
                 name="maxOutputTokens"
                 type="number"
                 min="1"
+                max="8192"
                 step="1"
-                placeholder="留空代表使用模型預設"
+                placeholder="留空代表使用模型預設，最大 8192"
               />
+              <span class="hint">控制回覆最長可以有多長。設太高會增加成本，也可能讓回覆變得冗長；摘要通常 `1024` 到 `2048` 就夠。</span>
             </label>
           </div>
         </section>
@@ -235,7 +250,7 @@
         <label class="toggle-field" for="enable-google-search">
           <span>
             <span class="label">Google Search Grounding</span>
-            <span class="hint">讓 Gemini 視需要使用 Google Search 工具。部分模型可能不支援。</span>
+            <span class="hint">讓 Gemini 視需要使用 Google Search 工具。部分模型可能不支援，且會增加外部資料查詢風險。</span>
           </span>
           <input id="enable-google-search" name="enableGoogleSearch" type="checkbox" />
         </label>
@@ -248,10 +263,18 @@
           <input id="auto-export-txt" name="autoExportTxt" type="checkbox" />
         </label>
 
+        <label class="toggle-field" for="summary-cache-enabled">
+          <span>
+            <span class="label">Summary Cache</span>
+            <span class="hint">關閉後不保存摘要快取。開啟時只保存摘要結果，並會在 1 天後自動清理。</span>
+          </span>
+          <input id="summary-cache-enabled" name="summaryCacheEnabled" type="checkbox" />
+        </label>
+
         <section class="cache-box">
           <p class="label">Cache Protection</p>
           <p class="hint">
-            只快取 AI 摘要結果，不保存全文。快取會自動套用有效期與筆數上限，超出會自動清理。
+            只快取 AI 摘要結果，不保存全文。快取上限仍為 20 筆，並會在 1 天後自動清理。
           </p>
           <button id="clear-cache-button" type="button" class="secondary-button">清空摘要快取</button>
         </section>

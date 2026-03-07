@@ -6,6 +6,7 @@ const providerInput = document.getElementById("provider");
 const modelInput = document.getElementById("model");
 const fallbackModelInput = document.getElementById("fallback-model");
 const apiKeyInput = document.getElementById("api-key");
+const rememberApiKeyInput = document.getElementById("remember-api-key");
 const temperatureInput = document.getElementById("temperature");
 const topPInput = document.getElementById("top-p");
 const topKInput = document.getElementById("top-k");
@@ -23,8 +24,10 @@ const lineHeightInput = document.getElementById("line-height");
 const streamOutputInput = document.getElementById("stream-output");
 const enableGoogleSearchInput = document.getElementById("enable-google-search");
 const autoExportTxtInput = document.getElementById("auto-export-txt");
+const summaryCacheEnabledInput = document.getElementById("summary-cache-enabled");
 const clearCacheButton = document.getElementById("clear-cache-button");
 const CACHE_INDEX_KEY = "__summaryCacheIndex";
+const SESSION_API_KEY_KEY = "__sessionApiKey";
 const FONT_FAMILY_OPTIONS = new Set(["pingfang", "systemSans", "notoSansTc", "serif"]);
 const FONT_WEIGHT_OPTIONS = new Set(["400", "500", "600", "700"]);
 const LINE_HEIGHT_OPTIONS = new Set(["1.4", "1.5", "1.6", "1.7", "1.8"]);
@@ -44,6 +47,7 @@ const DEFAULT_SETTINGS = {
   model: "gemini-3.1-flash-lite-preview",
   fallbackModel: "gemini-2.5-flash",
   apiKey: "",
+  rememberApiKey: false,
   temperature: "0.3",
   topP: "",
   topK: "",
@@ -56,7 +60,9 @@ const DEFAULT_SETTINGS = {
   fontWeight: "500",
   lineHeight: "1.5",
   streamOutput: false,
+  enableGoogleSearch: false,
   autoExportTxt: false,
+  summaryCacheEnabled: true,
 };
 const WORLD_LANGUAGES = [
   "Afrikaans",
@@ -384,6 +390,87 @@ function storageRemove(keys) {
   });
 }
 
+function sessionStorageAvailable() {
+  return Boolean(api.storage?.session);
+}
+
+function sessionStorageGet(defaults) {
+  if (!sessionStorageAvailable()) {
+    return Promise.resolve({ ...defaults });
+  }
+
+  const maybePromise = api.storage.session.get(defaults);
+  if (maybePromise && typeof maybePromise.then === "function") {
+    return maybePromise;
+  }
+
+  return new Promise((resolve, reject) => {
+    api.storage.session.get(defaults, (result) => {
+      const lastError = api.runtime?.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message));
+        return;
+      }
+
+      resolve(result);
+    });
+  });
+}
+
+function sessionStorageSet(value) {
+  if (!sessionStorageAvailable()) {
+    return Promise.resolve();
+  }
+
+  const maybePromise = api.storage.session.set(value);
+  if (maybePromise && typeof maybePromise.then === "function") {
+    return maybePromise;
+  }
+
+  return new Promise((resolve, reject) => {
+    api.storage.session.set(value, () => {
+      const lastError = api.runtime?.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message));
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
+function sessionStorageRemove(keys) {
+  if (!sessionStorageAvailable()) {
+    return Promise.resolve();
+  }
+
+  const maybePromise = api.storage.session.remove(keys);
+  if (maybePromise && typeof maybePromise.then === "function") {
+    return maybePromise;
+  }
+
+  return new Promise((resolve, reject) => {
+    api.storage.session.remove(keys, () => {
+      const lastError = api.runtime?.lastError;
+      if (lastError) {
+        reject(new Error(lastError.message));
+        return;
+      }
+
+      resolve();
+    });
+  });
+}
+
+async function clearSummaryCache() {
+  const stored = await storageGet({ [CACHE_INDEX_KEY]: [] });
+  const keys = Array.isArray(stored[CACHE_INDEX_KEY])
+    ? stored[CACHE_INDEX_KEY].map((entry) => entry?.key).filter(Boolean)
+    : [];
+  await storageRemove([...keys, CACHE_INDEX_KEY]);
+}
+
 async function loadSettings() {
   setSaveStatus("讀取設定中...");
   renderTargetLanguageOptions(targetLanguageInput.value);
@@ -391,10 +478,15 @@ async function loadSettings() {
 
   try {
     const settings = await storageGet(DEFAULT_SETTINGS);
+    const sessionApiKey = await sessionStorageGet({ [SESSION_API_KEY_KEY]: "" });
     providerInput.value = settings.provider || DEFAULT_SETTINGS.provider;
     modelInput.value = settings.model || DEFAULT_SETTINGS.model;
     fallbackModelInput.value = settings.fallbackModel || DEFAULT_SETTINGS.fallbackModel;
-    apiKeyInput.value = settings.apiKey || "";
+    rememberApiKeyInput.checked = Boolean(settings.rememberApiKey);
+    apiKeyInput.value =
+      settings.apiKey ||
+      sessionApiKey[SESSION_API_KEY_KEY] ||
+      "";
     temperatureInput.value = normalizeNumericSetting(settings.temperature, {
       min: 0,
       max: 2,
@@ -413,7 +505,7 @@ async function loadSettings() {
     });
     maxOutputTokensInput.value = normalizeNumericSetting(settings.maxOutputTokens, {
       min: 1,
-      max: 65536,
+      max: 8192,
       fallback: DEFAULT_SETTINGS.maxOutputTokens,
       integer: true,
     });
@@ -444,6 +536,11 @@ async function loadSettings() {
     streamOutputInput.checked = Boolean(settings.streamOutput);
     enableGoogleSearchInput.checked = Boolean(settings.enableGoogleSearch);
     autoExportTxtInput.checked = Boolean(settings.autoExportTxt);
+    summaryCacheEnabledInput.checked = Boolean(settings.summaryCacheEnabled);
+    if (!sessionStorageAvailable() && !rememberApiKeyInput.checked) {
+      setSaveStatus("設定已載入。此瀏覽器不支援 session storage，API Key 仍會保存在 extension storage。");
+      return;
+    }
     setSaveStatus("設定已載入");
   } catch (error) {
     setSaveStatus(error instanceof Error ? error.message : "設定讀取失敗");
@@ -459,7 +556,8 @@ form.addEventListener("submit", async (event) => {
     provider: providerInput.value || DEFAULT_SETTINGS.provider,
     model: modelInput.value || DEFAULT_SETTINGS.model,
     fallbackModel: fallbackModelInput.value || DEFAULT_SETTINGS.fallbackModel,
-    apiKey: apiKeyInput.value.trim(),
+    apiKey: "",
+    rememberApiKey: rememberApiKeyInput.checked,
     temperature: normalizeNumericSetting(temperatureInput.value, {
       min: 0,
       max: 2,
@@ -478,7 +576,7 @@ form.addEventListener("submit", async (event) => {
     }),
     maxOutputTokens: normalizeNumericSetting(maxOutputTokensInput.value, {
       min: 1,
-      max: 65536,
+      max: 8192,
       fallback: DEFAULT_SETTINGS.maxOutputTokens,
       integer: true,
     }),
@@ -500,10 +598,31 @@ form.addEventListener("submit", async (event) => {
     streamOutput: streamOutputInput.checked,
     enableGoogleSearch: enableGoogleSearchInput.checked,
     autoExportTxt: autoExportTxtInput.checked,
+    summaryCacheEnabled: summaryCacheEnabledInput.checked,
   };
+  const nextApiKey = apiKeyInput.value.trim();
 
   try {
-    await storageSet(payload);
+    if (payload.rememberApiKey || !sessionStorageAvailable()) {
+      payload.apiKey = nextApiKey;
+      await storageSet(payload);
+      await sessionStorageRemove(SESSION_API_KEY_KEY);
+    } else {
+      await storageSet(payload);
+      await storageRemove("apiKey");
+      if (nextApiKey) {
+        await sessionStorageSet({ [SESSION_API_KEY_KEY]: nextApiKey });
+      } else {
+        await sessionStorageRemove(SESSION_API_KEY_KEY);
+      }
+    }
+    if (!payload.summaryCacheEnabled) {
+      await clearSummaryCache();
+    }
+    if (!sessionStorageAvailable() && !payload.rememberApiKey) {
+      setSaveStatus("設定已儲存。此瀏覽器不支援 session storage，API Key 仍會保存在 extension storage。");
+      return;
+    }
     setSaveStatus("設定已儲存");
   } catch (error) {
     setSaveStatus(error instanceof Error ? error.message : "儲存失敗");
@@ -517,11 +636,7 @@ clearCacheButton.addEventListener("click", async () => {
   setSaveStatus("清理快取中...");
 
   try {
-    const stored = await storageGet({ [CACHE_INDEX_KEY]: [] });
-    const keys = Array.isArray(stored[CACHE_INDEX_KEY])
-      ? stored[CACHE_INDEX_KEY].map((entry) => entry?.key).filter(Boolean)
-      : [];
-    await storageRemove([...keys, CACHE_INDEX_KEY]);
+    await clearSummaryCache();
     setSaveStatus("摘要快取已清空");
   } catch (error) {
     setSaveStatus(error instanceof Error ? error.message : "快取清理失敗");
