@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fire Summary Discussion Showcase</title>
+    <link rel="stylesheet" href="../../../extension/discussion.css" />
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Discussion</p>
+        <h1>Follow-up Analysis</h1>
+        <p class="lead">在同一份摘要上下文中，直接延伸問題、比較觀點與整理下一步。</p>
+      </section>
+
+      <section class="context-card">
+        <p class="meta">摘要模型：gemini-2.5-flash</p>
+        <h2 class="context-title">打造高訊號產品節奏的三個實戰原則</h2>
+        <p class="context-url">https://example.com/product-rhythm-principles</p>
+        <div class="markdown">
+          <p>文章核心觀點是：有效率的產品節奏來自清楚的問題定義、穩定的跨職能同步，以及能持續沉澱的決策輸出。</p>
+          <ul>
+            <li>不要太早跳到 solution mode。</li>
+            <li>讓設計、工程、產品共享同一份 decision log。</li>
+            <li>每輪迭代都留下下一輪可以直接接手的摘要與行動項目。</li>
+          </ul>
+        </div>
+      </section>
+
+      <section class="messages">
+        <article class="message user">
+          <p class="message-role">You</p>
+          <div class="markdown">
+            <p>請從工程風險、產品價值、下一步行動三個角度延伸分析。</p>
+          </div>
+        </article>
+
+        <article class="message assistant">
+          <p class="message-role">Gemini</p>
+          <div class="markdown">
+            <h3>工程風險</h3>
+            <ul>
+              <li>若沒有固定 decision log，跨 sprint 的上下文很容易流失。</li>
+              <li>過早開工會導致需求反覆變動，增加返工與技術債。</li>
+            </ul>
+            <h3>產品價值</h3>
+            <ul>
+              <li>更快聚焦真正的使用者問題，而不是被零碎需求帶著走。</li>
+              <li>決策品質提高後，團隊更容易把時間投入高影響任務。</li>
+            </ul>
+            <h3>下一步行動</h3>
+            <ol>
+              <li>把每次需求討論收斂成一頁摘要。</li>
+              <li>建立跨職能共同維護的 decision log。</li>
+              <li>在每次 sprint review 後回顧哪些輸出能被下一輪直接沿用。</li>
+            </ol>
+          </div>
+        </article>
+      </section>
+
+      <form class="composer">
+        <label class="composer-label" for="followup-input">延伸討論</label>
+        <textarea id="followup-input" rows="4">如果團隊人數只有 4 人，這套節奏應該怎麼最小化落地？</textarea>
+        <div class="composer-actions">
+          <p class="composer-status">可根據目前摘要繼續追問。</p>
+          <div class="composer-buttons">
+            <button type="button" class="secondary-button">匯出討論</button>
+            <div class="send-button-wrap">
+              <button type="button">送出問題</button>
+            </div>
+          </div>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>

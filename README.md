@@ -41,6 +41,14 @@ bash scripts/package-extension.sh
 - `PRIVACY.md`
 - `STORE_LISTING.md`
 
+上架截圖可由下列腳本重建，預設會輸出到 `output/playwright/store/screenshots/`：
+
+```bash
+PLAYWRIGHT_MODULE_PATH=/tmp/fire-summary-playwright/node_modules/playwright/index.mjs \
+PLAYWRIGHT_BROWSERS_PATH=/tmp/fire-summary-playwright-browsers \
+node scripts/render-store-screenshots.mjs
+```
+
 ## 載入到 Chrome
 
 1. 開啟 `chrome://extensions`

@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fire Summary Popup Showcase</title>
+    <link rel="stylesheet" href="../../../extension/popup.css" />
+    <style>
+      body {
+        display: grid;
+        place-items: center;
+        min-height: 100vh;
+        padding: 48px;
+      }
+
+      .device-frame {
+        width: 420px;
+        border-radius: 32px;
+        background: rgba(255, 252, 247, 0.66);
+        box-shadow: 0 28px 80px rgba(50, 31, 14, 0.22);
+        backdrop-filter: blur(12px);
+      }
+
+      .summary h3 {
+        margin: 0 0 12px;
+      }
+    </style>
+  </head>
+  <body data-font-size="medium">
+    <div class="device-frame">
+      <main class="app">
+        <header class="hero">
+          <h1>Fire Summary</h1>
+        </header>
+
+        <div class="actions">
+          <button id="summarize-button" type="button">複製摘要</button>
+          <button id="copy-article-button" type="button" class="secondary">複製全文</button>
+        </div>
+
+        <section class="panel">
+          <p id="status" class="status">
+            <span class="status-spinner" aria-hidden="true"></span>
+            <span class="status-text">來源：gemini-2.5-flash，共 8,412 字</span>
+          </p>
+          <h2 id="article-title" class="title">打造高訊號產品節奏的三個實戰原則</h2>
+          <div id="summary" class="summary">
+            <h3>重點摘要</h3>
+            <p>這篇文章主張產品團隊應把節奏感建立在「問題定義」、「跨職能同步」與「可回顧的輸出」上，而不是只追求速度。</p>
+            <ul>
+              <li>先縮小問題邊界，再討論解法，能降低無效會議與返工。</li>
+              <li>產品、設計與工程若能共享同一份 decision log，決策品質會明顯提升。</li>
+              <li>每次迭代都要留下可被下一輪沿用的文檔、摘要與行動項目。</li>
+            </ul>
+          </div>
+        </section>
+
+        <button id="open-settings-button" type="button" class="ghost">設定</button>
+        <button id="open-discussion-button" type="button" class="ghost">延伸討論</button>
+      </main>
+    </div>
+  </body>
+</html>

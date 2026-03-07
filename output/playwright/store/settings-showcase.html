@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Fire Summary Settings Showcase</title>
+    <link rel="stylesheet" href="../../../extension/settings.css" />
+    <style>
+      .combo-field.open .combo-options {
+        display: block;
+      }
+
+      .combo-options {
+        position: static;
+        margin-top: 10px;
+        display: block;
+      }
+
+      .combo-toggle {
+        pointer-events: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <p class="eyebrow">Settings</p>
+        <h1>Fire Summary</h1>
+        <p class="lead">管理 Gemini API、目標語言、Prompt 與閱讀排版偏好。</p>
+      </section>
+
+      <form class="panel">
+        <label class="field">
+          <span class="label">API Provider</span>
+          <select>
+            <option selected>Google Gemini</option>
+          </select>
+        </label>
+
+        <div class="field-grid">
+          <label class="field">
+            <span class="label">Model</span>
+            <input type="text" value="gemini-2.5-flash" />
+          </label>
+
+          <label class="field">
+            <span class="label">Fallback Model</span>
+            <select>
+              <option selected>gemini-2.5-flash</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="field">
+          <span class="label">Gemini API Key</span>
+          <input type="password" value="AIza****************" />
+          <span class="hint">使用你自己的 API Key，請求會直接送到 Google Generative Language API。</span>
+        </label>
+
+        <label class="field">
+          <span class="label">Target Language</span>
+          <div class="combo-field open">
+            <div class="combo-input-row">
+              <input type="text" value="繁體" />
+              <button class="combo-toggle" type="button">▾</button>
+            </div>
+            <div class="combo-options" role="listbox">
+              <button type="button" class="combo-option">简体中文</button>
+              <button type="button" class="combo-option selected">繁體中文</button>
+              <button type="button" class="combo-option">English</button>
+              <button type="button" class="combo-option">日本語</button>
+            </div>
+          </div>
+          <span class="hint">輸入關鍵字可搜尋，也可以直接從下拉清單選擇。</span>
+        </label>
+
+        <label class="field">
+          <span class="label">Custom Prompt</span>
+          <textarea rows="6">請用產品經理視角整理：核心問題、使用者價值、執行風險、下一步行動。</textarea>
+        </label>
+
+        <div class="field-grid">
+          <label class="field">
+            <span class="label">Font Size</span>
+            <select>
+              <option selected>Medium</option>
+            </select>
+          </label>
+
+          <label class="field">
+            <span class="label">Font Weight</span>
+            <select>
+              <option selected>500</option>
+            </select>
+          </label>
+        </div>
+
+        <section class="cache-box">
+          <p class="label">Typography</p>
+          <p class="hint">控制 popup 摘要與延伸討論頁的標題字體、內文字體、字重與行高。</p>
+          <div class="field-grid">
+            <label class="field">
+              <span class="label">標題字體</span>
+              <select>
+                <option selected>蘋方（PingFang）</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="label">內文字體</span>
+              <select>
+                <option selected>系統預設無襯線體（System Sans-serif）</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="label">Line Height</span>
+              <select>
+                <option selected>1.5</option>
+              </select>
+            </label>
+
+            <label class="toggle-field" for="stream-output">
+              <span>
+                <span class="label">Stream Output</span>
+                <span class="hint">即時回填摘要內容</span>
+              </span>
+              <input id="stream-output" type="checkbox" checked />
+            </label>
+          </div>
+        </section>
+
+        <div class="footer">
+          <p class="save-status">設定已儲存</p>
+          <button type="button">儲存設定</button>
+        </div>
+      </form>
+    </main>
+  </body>
+</html>
