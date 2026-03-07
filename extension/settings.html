@@ -24,7 +24,13 @@
 
         <label class="field">
           <span class="label">Model</span>
-          <input id="model" name="model" type="text" list="model-options" placeholder="例如：gemini-2.5-flash" />
+          <input
+            id="model"
+            name="model"
+            type="text"
+            list="model-options"
+            placeholder="例如：gemini-3.1-flash-lite-preview"
+          />
           <datalist id="model-options">
             <option value="gemini-3.1-pro-preview"></option>
             <option value="gemini-3-flash-preview"></option>
@@ -60,6 +66,62 @@
             前往 Google AI Studio 取得 API Key
           </a>
         </label>
+
+        <section class="cache-box">
+          <p class="label">API Parameters</p>
+          <p class="hint">控制 Gemini 生成參數。搜尋功能只會在支援的模型上生效。</p>
+          <div class="field-grid">
+            <label class="field">
+              <span class="label">Temperature</span>
+              <input
+                id="temperature"
+                name="temperature"
+                type="number"
+                min="0"
+                max="2"
+                step="0.05"
+                placeholder="0.3"
+              />
+            </label>
+
+            <label class="field">
+              <span class="label">Top P</span>
+              <input
+                id="top-p"
+                name="topP"
+                type="number"
+                min="0"
+                max="1"
+                step="0.05"
+                placeholder="留空代表使用模型預設"
+              />
+            </label>
+
+            <label class="field">
+              <span class="label">Top K</span>
+              <input
+                id="top-k"
+                name="topK"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="留空代表使用模型預設"
+              />
+            </label>
+
+            <label class="field">
+              <span class="label">Max Output Tokens</span>
+              <input
+                id="max-output-tokens"
+                name="maxOutputTokens"
+                type="number"
+                min="1"
+                step="1"
+                placeholder="留空代表使用模型預設"
+              />
+            </label>
+          </div>
+        </section>
 
         <label class="field">
           <span class="label">Target Language</span>
@@ -167,6 +229,14 @@
             <span class="hint">勾選後會改用 Gemini streaming API，即時回填摘要內容。</span>
           </span>
           <input id="stream-output" name="streamOutput" type="checkbox" />
+        </label>
+
+        <label class="toggle-field" for="enable-google-search">
+          <span>
+            <span class="label">Google Search Grounding</span>
+            <span class="hint">讓 Gemini 視需要使用 Google Search 工具。部分模型可能不支援。</span>
+          </span>
+          <input id="enable-google-search" name="enableGoogleSearch" type="checkbox" />
         </label>
 
         <label class="toggle-field" for="auto-export-txt">

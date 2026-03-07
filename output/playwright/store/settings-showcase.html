@@ -69,7 +69,7 @@
         <div class="field-grid">
           <label class="field">
             <span class="label">Model</span>
-            <input type="text" value="gemini-2.5-flash" />
+            <input type="text" value="gemini-3.1-flash-lite-preview" />
           </label>
 
           <label class="field">
@@ -85,6 +85,32 @@
           <input type="password" value="AIza****************" />
           <span class="hint">使用你自己的 API Key，請求會直接送到 Google Generative Language API。</span>
         </label>
+
+        <section class="cache-box">
+          <p class="label">API Parameters</p>
+          <p class="hint">可調整 temperature、topP、topK、max output tokens 與 Google Search grounding。</p>
+          <div class="field-grid">
+            <label class="field">
+              <span class="label">Temperature</span>
+              <input type="number" value="0.3" />
+            </label>
+
+            <label class="field">
+              <span class="label">Top P</span>
+              <input type="number" value="0.95" />
+            </label>
+
+            <label class="field">
+              <span class="label">Top K</span>
+              <input type="number" value="40" />
+            </label>
+
+            <label class="field">
+              <span class="label">Max Output Tokens</span>
+              <input type="number" value="2048" />
+            </label>
+          </div>
+        </section>
 
         <label class="field">
           <span class="label">Target Language</span>
@@ -157,6 +183,14 @@
             <span class="hint">即時回填摘要內容</span>
           </span>
           <input id="stream-output" type="checkbox" checked />
+        </label>
+
+        <label class="toggle-field" for="enable-google-search">
+          <span>
+            <span class="label">Google Search Grounding</span>
+            <span class="hint">讓 Gemini 在支援模型上使用搜尋工具</span>
+          </span>
+          <input id="enable-google-search" type="checkbox" />
         </label>
 
         <div class="footer">

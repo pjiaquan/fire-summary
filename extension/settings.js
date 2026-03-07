@@ -6,6 +6,10 @@ const providerInput = document.getElementById("provider");
 const modelInput = document.getElementById("model");
 const fallbackModelInput = document.getElementById("fallback-model");
 const apiKeyInput = document.getElementById("api-key");
+const temperatureInput = document.getElementById("temperature");
+const topPInput = document.getElementById("top-p");
+const topKInput = document.getElementById("top-k");
+const maxOutputTokensInput = document.getElementById("max-output-tokens");
 const targetLanguageInput = document.getElementById("target-language");
 const targetLanguageCombobox = document.getElementById("target-language-combobox");
 const targetLanguageOptions = document.getElementById("target-language-options");
@@ -17,6 +21,7 @@ const bodyFontInput = document.getElementById("body-font");
 const fontWeightInput = document.getElementById("font-weight");
 const lineHeightInput = document.getElementById("line-height");
 const streamOutputInput = document.getElementById("stream-output");
+const enableGoogleSearchInput = document.getElementById("enable-google-search");
 const autoExportTxtInput = document.getElementById("auto-export-txt");
 const clearCacheButton = document.getElementById("clear-cache-button");
 const CACHE_INDEX_KEY = "__summaryCacheIndex";
@@ -36,9 +41,13 @@ const DEFAULT_SYSTEM_PROMPT = [
 
 const DEFAULT_SETTINGS = {
   provider: "google_gemini",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.1-flash-lite-preview",
   fallbackModel: "gemini-2.5-flash",
   apiKey: "",
+  temperature: "0.3",
+  topP: "",
+  topK: "",
+  maxOutputTokens: "",
   targetLanguage: "繁體中文",
   customPrompt: "",
   fontSize: "medium",
@@ -289,6 +298,26 @@ function pickStoredValue(value, allowedValues, fallback) {
   return allowedValues.has(value) ? value : fallback;
 }
 
+function normalizeNumericSetting(value, options) {
+  const { min, max, fallback = "", integer = false } = options;
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  const parsed = integer ? Number.parseInt(trimmed, 10) : Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  const clamped = Math.min(max, Math.max(min, parsed));
+  if (integer) {
+    return String(Math.trunc(clamped));
+  }
+
+  return String(Number(clamped.toFixed(4)));
+}
+
 function storageGet(defaults) {
   const maybePromise = api.storage.local.get(defaults);
   if (maybePromise && typeof maybePromise.then === "function") {
@@ -357,6 +386,28 @@ async function loadSettings() {
     modelInput.value = settings.model || DEFAULT_SETTINGS.model;
     fallbackModelInput.value = settings.fallbackModel || DEFAULT_SETTINGS.fallbackModel;
     apiKeyInput.value = settings.apiKey || "";
+    temperatureInput.value = normalizeNumericSetting(settings.temperature, {
+      min: 0,
+      max: 2,
+      fallback: DEFAULT_SETTINGS.temperature,
+    });
+    topPInput.value = normalizeNumericSetting(settings.topP, {
+      min: 0,
+      max: 1,
+      fallback: DEFAULT_SETTINGS.topP,
+    });
+    topKInput.value = normalizeNumericSetting(settings.topK, {
+      min: 1,
+      max: 200,
+      fallback: DEFAULT_SETTINGS.topK,
+      integer: true,
+    });
+    maxOutputTokensInput.value = normalizeNumericSetting(settings.maxOutputTokens, {
+      min: 1,
+      max: 65536,
+      fallback: DEFAULT_SETTINGS.maxOutputTokens,
+      integer: true,
+    });
     targetLanguageInput.value = settings.targetLanguage || DEFAULT_SETTINGS.targetLanguage;
     renderTargetLanguageOptions(targetLanguageInput.value);
     customPromptInput.value = settings.customPrompt || "";
@@ -382,6 +433,7 @@ async function loadSettings() {
       DEFAULT_SETTINGS.lineHeight
     );
     streamOutputInput.checked = Boolean(settings.streamOutput);
+    enableGoogleSearchInput.checked = Boolean(settings.enableGoogleSearch);
     autoExportTxtInput.checked = Boolean(settings.autoExportTxt);
     setSaveStatus("設定已載入");
   } catch (error) {
@@ -399,6 +451,28 @@ form.addEventListener("submit", async (event) => {
     model: modelInput.value || DEFAULT_SETTINGS.model,
     fallbackModel: fallbackModelInput.value || DEFAULT_SETTINGS.fallbackModel,
     apiKey: apiKeyInput.value.trim(),
+    temperature: normalizeNumericSetting(temperatureInput.value, {
+      min: 0,
+      max: 2,
+      fallback: DEFAULT_SETTINGS.temperature,
+    }),
+    topP: normalizeNumericSetting(topPInput.value, {
+      min: 0,
+      max: 1,
+      fallback: DEFAULT_SETTINGS.topP,
+    }),
+    topK: normalizeNumericSetting(topKInput.value, {
+      min: 1,
+      max: 200,
+      fallback: DEFAULT_SETTINGS.topK,
+      integer: true,
+    }),
+    maxOutputTokens: normalizeNumericSetting(maxOutputTokensInput.value, {
+      min: 1,
+      max: 65536,
+      fallback: DEFAULT_SETTINGS.maxOutputTokens,
+      integer: true,
+    }),
     targetLanguage: targetLanguageInput.value.trim() || DEFAULT_SETTINGS.targetLanguage,
     customPrompt: customPromptInput.value.trim(),
     fontSize: fontSizeInput.value || DEFAULT_SETTINGS.fontSize,
@@ -415,6 +489,7 @@ form.addEventListener("submit", async (event) => {
       DEFAULT_SETTINGS.lineHeight
     ),
     streamOutput: streamOutputInput.checked,
+    enableGoogleSearch: enableGoogleSearchInput.checked,
     autoExportTxt: autoExportTxtInput.checked,
   };
 

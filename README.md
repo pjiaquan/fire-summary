@@ -40,11 +40,22 @@ bash scripts/package-extension.sh
 - `dist/fire-summary-chrome-v<version>.zip`
 - `dist/fire-summary-firefox-v<version>.zip`
 
+如果要另外產出 Firefox reviewer 用的 source code zip，在 repo 根目錄執行：
+
+```bash
+bash scripts/firefox-source-package.sh
+```
+
+這會輸出：
+
+- `dist/fire-summary-firefox-source-v<version>.zip`
+
 ## GitHub Release
 
 Repo 已包含 GitHub Actions release workflow：
 
 - 推送 tag，例如 `v0.1.0`，會自動 build、打包、建立 GitHub Release 並上傳 zip
+- 同時也會附上 Firefox reviewer 可用的 source code zip
 - 也可從 Actions 頁面手動執行 `Release` workflow，並填入 `release_tag`
 - 也可執行 `Cut Release` workflow，自動把版本加一、commit、tag、push，然後觸發正式 release
 

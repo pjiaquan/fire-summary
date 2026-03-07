@@ -3,9 +3,13 @@ const DISCUSSION_CONTEXT_KEY = "__discussionContext";
 const DISCUSSION_STATE_KEY = "__discussionState";
 const DEFAULT_SETTINGS = {
   provider: "google_gemini",
-  model: "gemini-2.5-flash",
+  model: "gemini-3.1-flash-lite-preview",
   fallbackModel: "gemini-2.5-flash",
   apiKey: "",
+  temperature: "0.3",
+  topP: "",
+  topK: "",
+  maxOutputTokens: "",
   targetLanguage: "繁體中文",
   customPrompt: "",
   fontSize: "medium",
@@ -14,6 +18,7 @@ const DEFAULT_SETTINGS = {
   fontWeight: "500",
   lineHeight: "1.5",
   streamOutput: false,
+  enableGoogleSearch: false,
   autoExportTxt: false,
 };
 const FONT_FAMILY_MAP = {
@@ -108,6 +113,68 @@ function applyTypographySettings(settings) {
   root.style.setProperty("--summary-body-font-family", FONT_FAMILY_MAP[bodyFont]);
   root.style.setProperty("--summary-font-weight", fontWeight);
   root.style.setProperty("--summary-line-height", lineHeight);
+}
+
+function parseGenerationNumber(value, options) {
+  const { min, max, fallback, integer = false } = options;
+  const trimmed = String(value ?? "").trim();
+  if (!trimmed) {
+    return fallback;
+  }
+
+  const parsed = integer ? Number.parseInt(trimmed, 10) : Number(trimmed);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  const clamped = Math.min(max, Math.max(min, parsed));
+  return integer ? Math.trunc(clamped) : clamped;
+}
+
+function buildGenerationConfig(settings, defaultTemperature) {
+  const generationConfig = {
+    temperature: parseGenerationNumber(settings.temperature, {
+      min: 0,
+      max: 2,
+      fallback: defaultTemperature,
+    }),
+  };
+
+  if (String(settings.topP ?? "").trim()) {
+    generationConfig.topP = parseGenerationNumber(settings.topP, {
+      min: 0,
+      max: 1,
+      fallback: 1,
+    });
+  }
+
+  if (String(settings.topK ?? "").trim()) {
+    generationConfig.topK = parseGenerationNumber(settings.topK, {
+      min: 1,
+      max: 200,
+      fallback: 40,
+      integer: true,
+    });
+  }
+
+  if (String(settings.maxOutputTokens ?? "").trim()) {
+    generationConfig.maxOutputTokens = parseGenerationNumber(settings.maxOutputTokens, {
+      min: 1,
+      max: 65536,
+      fallback: 2048,
+      integer: true,
+    });
+  }
+
+  return generationConfig;
+}
+
+function buildGeminiTools(settings) {
+  if (!settings.enableGoogleSearch) {
+    return undefined;
+  }
+
+  return [{ google_search: {} }];
 }
 
 function escapeHtml(text) {
@@ -746,10 +813,12 @@ async function askGemini(question, onPartial) {
       parts: [{ text: buildConversationSystemInstruction(settings, currentContext) }],
     },
     contents,
-    generationConfig: {
-      temperature: 0.45,
-    },
+    generationConfig: buildGenerationConfig(settings, 0.45),
   };
+  const tools = buildGeminiTools(settings);
+  if (tools) {
+    requestBody.tools = tools;
+  }
 
   const primaryModel = (settings.model || DEFAULT_SETTINGS.model).trim();
   const fallbackModel = (settings.fallbackModel || DEFAULT_SETTINGS.fallbackModel).trim();
