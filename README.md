@@ -190,6 +190,12 @@ bash scripts/run-rust-fixtures.sh
 - `output/rust-fixtures/comparison.json` baseline comparison report（如果 repo 內有 baseline）
 - `output/rust-fixtures/comparison.md` baseline comparison Markdown summary
 
+在正式跑 regression 前，script 也會先驗證 fixture consistency，確認：
+
+- `manifest.json` 沒有重複 id / file
+- 每個 fixture HTML 都有對應 manifest entry
+- `baseline.json` 和 manifest 的 fixture 集合同步
+
 目前 fixture 定義在：
 
 - `fixtures/rust-core-v2/manifest.json`
