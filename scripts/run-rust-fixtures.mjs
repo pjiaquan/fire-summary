@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -13,6 +13,8 @@ const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
 const FIXTURE_DIR = path.join(REPO_ROOT, "fixtures", "rust-core-v2");
 const MANIFEST_PATH = path.join(FIXTURE_DIR, "manifest.json");
 const WASM_PATH = path.join(REPO_ROOT, "extension", "pkg", "fire_summary_bg.wasm");
+const REPORT_DIR = path.join(REPO_ROOT, "output", "rust-fixtures");
+const REPORT_PATH = path.join(REPORT_DIR, "latest.json");
 
 function formatNumber(value, digits = 2) {
   return typeof value === "number" && Number.isFinite(value) ? value.toFixed(digits) : "-";
@@ -196,6 +198,17 @@ async function main() {
   }
 
   const failedReports = reports.filter((report) => report.failures.length > 0);
+  const reportPayload = {
+    generatedAt: new Date().toISOString(),
+    fixtureCount: reports.length,
+    failedCount: failedReports.length,
+    passedCount: reports.length - failedReports.length,
+    reports,
+  };
+  await mkdir(REPORT_DIR, { recursive: true });
+  await writeFile(REPORT_PATH, `${JSON.stringify(reportPayload, null, 2)}\n`, "utf8");
+  console.log(`\nSaved JSON report to ${REPORT_PATH}`);
+
   if (failedReports.length > 0) {
     console.error(`\nFixture regression failed: ${failedReports.length} fixture(s) mismatched.`);
     process.exitCode = 1;

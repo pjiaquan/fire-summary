@@ -174,12 +174,13 @@ bash scripts/run-rust-fixtures.sh
 - prompt token usage
 - top ranked blocks
 - expectation mismatch
+- `output/rust-fixtures/latest.json` JSON report
 
 目前 fixture 定義在：
 
 - `fixtures/rust-core-v2/manifest.json`
 
-GitHub Actions 也會在 push / pull request 時自動執行同一套 Rust fixture regression。
+GitHub Actions 也會在 push / pull request 時自動執行同一套 Rust fixture regression，並上傳 JSON report artifact。
 
 ## 目前行為
 
