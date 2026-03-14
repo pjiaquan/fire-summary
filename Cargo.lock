@@ -96,7 +96,7 @@ checksum = "12a0bb14ac04a9fcf170d0bbbef949b44cc492f4452bd20c095636956f653642"
 
 [[package]]
 name = "fire-summary"
-version = "0.1.2"
+version = "0.3.0"
 dependencies = [
  "getrandom 0.3.4",
  "scraper",
