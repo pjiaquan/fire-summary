@@ -70,6 +70,7 @@ let latestProcessedArticle = null;
 let latestSummaryMarkdown = "";
 let latestSummaryTitle = "";
 let latestSummaryModel = "";
+let latestSummaryGeneratedAt = 0;
 let summarizeInFlight = null;
 
 async function ensureWasmReady() {
@@ -1193,8 +1194,85 @@ function sanitizeFilename(title) {
   return (normalized || "summary").slice(0, 80);
 }
 
-function downloadSummaryTxt(title, markdown) {
-  const blob = new Blob([markdown], { type: "text/plain;charset=utf-8" });
+function getSourceUrl(processedArticle) {
+  const article = processedArticle?.article;
+  const preferredUrl =
+    typeof article?.canonicalUrl === "string" && article.canonicalUrl.trim()
+      ? article.canonicalUrl.trim()
+      : typeof article?.url === "string" && article.url.trim()
+        ? article.url.trim()
+        : latestArticleUrl;
+
+  return typeof preferredUrl === "string" ? preferredUrl.trim() : "";
+}
+
+function getSourceSiteLabel(url) {
+  if (!url) {
+    return "";
+  }
+
+  try {
+    return new URL(url).hostname.replace(/^www\./i, "");
+  } catch {
+    return "";
+  }
+}
+
+function normalizeDateTime(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const parsed = Date.parse(trimmed);
+  return Number.isNaN(parsed) ? trimmed : new Date(parsed).toISOString();
+}
+
+function buildSummaryExportText(title, markdown, processedArticle, summaryGeneratedAt) {
+  const lines = [];
+  const sourceUrl = getSourceUrl(processedArticle);
+  const sourceSite = getSourceSiteLabel(sourceUrl);
+  const articleDateTime = normalizeDateTime(processedArticle?.article?.publishedTime);
+  const generatedDateTime = Number.isFinite(summaryGeneratedAt)
+    ? new Date(summaryGeneratedAt).toISOString()
+    : "";
+
+  if (title) {
+    lines.push(`Title: ${title}`);
+  }
+  if (sourceSite) {
+    lines.push(`Site: ${sourceSite}`);
+  }
+  if (sourceUrl) {
+    lines.push(`URL: ${sourceUrl}`);
+  }
+  if (articleDateTime) {
+    lines.push(`Article datetime: ${articleDateTime}`);
+  }
+  if (generatedDateTime) {
+    lines.push(`Summary datetime: ${generatedDateTime}`);
+  }
+
+  if (lines.length) {
+    lines.push("");
+  }
+
+  lines.push(markdown.trim());
+  return lines.join("\n").trim();
+}
+
+function downloadSummaryTxt(title, markdown, processedArticle, summaryGeneratedAt) {
+  const exportText = buildSummaryExportText(
+    title,
+    markdown,
+    processedArticle,
+    summaryGeneratedAt
+  );
+  const blob = new Blob([exportText], { type: "text/plain;charset=utf-8" });
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;
@@ -1210,17 +1288,30 @@ function maybeAutoExportSummary(settings) {
     return;
   }
 
-  downloadSummaryTxt(latestSummaryTitle || "summary", latestSummaryMarkdown);
+  downloadSummaryTxt(
+    latestSummaryTitle || "summary",
+    latestSummaryMarkdown,
+    latestProcessedArticle,
+    latestSummaryGeneratedAt
+  );
 }
 
-async function persistDiscussionContext(processedArticle, summaryMarkdown, summaryTitle, usedModel) {
+async function persistDiscussionContext(
+  processedArticle,
+  summaryMarkdown,
+  summaryTitle,
+  usedModel,
+  summaryGeneratedAt
+) {
   const promptPayload = processedArticle?.promptPayload || {};
   const quality = processedArticle?.quality || {};
+  const sourceUrl = getSourceUrl(processedArticle);
   const contextId = hashString(
     JSON.stringify({
       version: 2,
       articleTitle: processedArticle.title || "",
       articleUrl: latestArticleUrl,
+      sourceUrl,
       summaryMarkdown,
       summaryTitle,
       usedModel,
@@ -1232,6 +1323,9 @@ async function persistDiscussionContext(processedArticle, summaryMarkdown, summa
     contextId,
     articleTitle: processedArticle.title || "",
     articleUrl: latestArticleUrl,
+    sourceUrl,
+    articleSite: getSourceSiteLabel(sourceUrl),
+    articlePublishedTime: normalizeDateTime(processedArticle?.article?.publishedTime),
     excerpt: processedArticle.excerpt || "",
     articleHeader: promptPayload.articleHeader || "",
     compressedContext: promptPayload.compressedContext || "",
@@ -1244,6 +1338,7 @@ async function persistDiscussionContext(processedArticle, summaryMarkdown, summa
     summaryMarkdown,
     summaryTitle,
     usedModel,
+    summaryGeneratedAt,
     savedAt: Date.now(),
   });
 }
@@ -1272,6 +1367,7 @@ async function summarizeCurrentPage() {
         const cachedSummary = await getCachedSummary(cacheKey);
         if (cachedSummary?.markdown) {
           latestSummaryMarkdown = cachedSummary.markdown;
+          latestSummaryGeneratedAt = Number(cachedSummary.cachedAt) || Date.now();
           const parsed = setRenderedSummary(cachedSummary.markdown, bundle.processedArticle.title);
           latestSummaryTitle = cachedSummary.aiTitle || parsed.aiTitle;
           latestSummaryModel = cachedSummary.usedModel || settings.model || DEFAULT_SETTINGS.model;
@@ -1279,7 +1375,8 @@ async function summarizeCurrentPage() {
             bundle.processedArticle,
             cachedSummary.markdown,
             latestSummaryTitle,
-            latestSummaryModel
+            latestSummaryModel,
+            latestSummaryGeneratedAt
           );
           setStatus(
             [qualityStatus, `已命中快取：${latestSummaryModel}`].filter(Boolean).join("，")
@@ -1307,6 +1404,7 @@ async function summarizeCurrentPage() {
       );
 
       latestSummaryMarkdown = markdown;
+      latestSummaryGeneratedAt = Date.now();
       const parsed = setRenderedSummary(markdown, bundle.processedArticle.title);
       latestSummaryTitle = parsed.aiTitle;
       latestSummaryModel = usedModel;
@@ -1315,14 +1413,15 @@ async function summarizeCurrentPage() {
           markdown,
           aiTitle: parsed.aiTitle,
           usedModel,
-          cachedAt: Date.now(),
+          cachedAt: latestSummaryGeneratedAt,
         });
       }
       await persistDiscussionContext(
         bundle.processedArticle,
         markdown,
         latestSummaryTitle,
-        usedModel
+        usedModel,
+        latestSummaryGeneratedAt
       );
 
       setStatus(
@@ -1340,6 +1439,7 @@ async function summarizeCurrentPage() {
       latestSummaryMarkdown = "";
       latestSummaryTitle = "";
       latestSummaryModel = "";
+      latestSummaryGeneratedAt = 0;
       setSummaryMessage(error instanceof Error ? error.message : String(error));
       setStatus("摘要失敗");
     } finally {

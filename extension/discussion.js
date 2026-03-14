@@ -722,15 +722,77 @@ function downloadTextFile(title, text) {
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
+function getContextSourceUrl() {
+  const sourceUrl =
+    typeof currentContext?.sourceUrl === "string" && currentContext.sourceUrl.trim()
+      ? currentContext.sourceUrl.trim()
+      : typeof currentContext?.articleUrl === "string"
+        ? currentContext.articleUrl.trim()
+        : "";
+
+  return sourceUrl;
+}
+
+function getSourceSiteLabel(url) {
+  if (!url) {
+    return "";
+  }
+
+  try {
+    return new URL(url).hostname.replace(/^www\./i, "");
+  } catch {
+    return "";
+  }
+}
+
+function normalizeDateTime(value) {
+  if (typeof value !== "string") {
+    return "";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+
+  const parsed = Date.parse(trimmed);
+  return Number.isNaN(parsed) ? trimmed : new Date(parsed).toISOString();
+}
+
 function buildDiscussionExportText() {
   const lines = [];
   const title = currentContext?.summaryTitle || currentContext?.articleTitle || "Fire Summary Discussion";
+  const sourceUrl = getContextSourceUrl();
+  const sourceSite =
+    (typeof currentContext?.articleSite === "string" && currentContext.articleSite.trim()) ||
+    getSourceSiteLabel(sourceUrl);
+  const articleDateTime = normalizeDateTime(currentContext?.articlePublishedTime);
+  const summaryGeneratedAt = Number.isFinite(currentContext?.summaryGeneratedAt)
+    ? new Date(currentContext.summaryGeneratedAt).toISOString()
+    : Number.isFinite(currentContext?.savedAt)
+      ? new Date(currentContext.savedAt).toISOString()
+      : "";
 
   lines.push(title);
   lines.push("");
 
-  if (currentContext?.articleUrl) {
-    lines.push(`URL: ${currentContext.articleUrl}`);
+  if (sourceSite) {
+    lines.push(`Site: ${sourceSite}`);
+  }
+
+  if (sourceUrl) {
+    lines.push(`URL: ${sourceUrl}`);
+  }
+
+  if (articleDateTime) {
+    lines.push(`Article datetime: ${articleDateTime}`);
+  }
+
+  if (summaryGeneratedAt) {
+    lines.push(`Summary datetime: ${summaryGeneratedAt}`);
+  }
+
+  if (sourceSite || sourceUrl || articleDateTime || summaryGeneratedAt) {
     lines.push("");
   }
 
