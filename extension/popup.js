@@ -6,8 +6,10 @@ const CACHE_PREFIX = "summaryCache:";
 const CACHE_INDEX_KEY = "__summaryCacheIndex";
 const DISCUSSION_CONTEXT_KEY = "__discussionContext";
 const SESSION_API_KEY_KEY = "__sessionApiKey";
+const AUTO_EXPORT_INDEX_KEY = "__autoExportIndex";
 const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const CACHE_MAX_ENTRIES = 20;
+const AUTO_EXPORT_MAX_ENTRIES = 20;
 const CACHE_MAX_MARKDOWN_CHARS = 20_000;
 const CACHE_MAX_TITLE_CHARS = 160;
 const MAX_OUTPUT_TOKENS_LIMIT = 8192;
@@ -746,6 +748,48 @@ async function setCacheIndex(index) {
   await storageSet({ [CACHE_INDEX_KEY]: index });
 }
 
+async function getAutoExportIndex() {
+  const stored = await storageGet({ [AUTO_EXPORT_INDEX_KEY]: [] });
+  if (!Array.isArray(stored[AUTO_EXPORT_INDEX_KEY])) {
+    return [];
+  }
+
+  return stored[AUTO_EXPORT_INDEX_KEY].filter(
+    (entry) => entry && typeof entry.fingerprint === "string" && entry.fingerprint.trim()
+  );
+}
+
+async function setAutoExportIndex(index) {
+  await storageSet({ [AUTO_EXPORT_INDEX_KEY]: index.slice(0, AUTO_EXPORT_MAX_ENTRIES) });
+}
+
+function buildAutoExportFingerprint(processedArticle, title, markdown) {
+  return hashString(
+    JSON.stringify({
+      version: 1,
+      title: String(title || "").trim(),
+      sourceUrl: getSourceUrl(processedArticle),
+      articlePublishedTime: normalizeDateTime(processedArticle?.article?.publishedTime),
+      markdown: String(markdown || "").trim(),
+    })
+  );
+}
+
+async function wasSummaryAutoExported(fingerprint) {
+  const index = await getAutoExportIndex();
+  return index.some((entry) => entry.fingerprint === fingerprint);
+}
+
+async function markSummaryAutoExported(fingerprint) {
+  const index = await getAutoExportIndex();
+  const nextIndex = [
+    { fingerprint, exportedAt: Date.now() },
+    ...index.filter((entry) => entry.fingerprint !== fingerprint),
+  ].slice(0, AUTO_EXPORT_MAX_ENTRIES);
+
+  await setAutoExportIndex(nextIndex);
+}
+
 async function pruneSummaryCache() {
   const now = Date.now();
   const index = await getCacheIndex();
@@ -1229,7 +1273,28 @@ function normalizeDateTime(value) {
   }
 
   const parsed = Date.parse(trimmed);
-  return Number.isNaN(parsed) ? trimmed : new Date(parsed).toISOString();
+  return Number.isNaN(parsed) ? trimmed : formatLocalUtcDateTime(new Date(parsed));
+}
+
+function formatLocalUtcDateTime(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const pad = (value) => String(value).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  const offsetMinutes = -date.getTimezoneOffset();
+  const offsetSign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffsetMinutes = Math.abs(offsetMinutes);
+  const offsetHours = pad(Math.trunc(absoluteOffsetMinutes / 60));
+  const offsetRemainderMinutes = pad(absoluteOffsetMinutes % 60);
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC${offsetSign}${offsetHours}:${offsetRemainderMinutes}`;
 }
 
 function buildSummaryExportText(title, markdown, processedArticle, summaryGeneratedAt) {
@@ -1238,7 +1303,7 @@ function buildSummaryExportText(title, markdown, processedArticle, summaryGenera
   const sourceSite = getSourceSiteLabel(sourceUrl);
   const articleDateTime = normalizeDateTime(processedArticle?.article?.publishedTime);
   const generatedDateTime = Number.isFinite(summaryGeneratedAt)
-    ? new Date(summaryGeneratedAt).toISOString()
+    ? formatLocalUtcDateTime(new Date(summaryGeneratedAt))
     : "";
 
   if (title) {
@@ -1283,8 +1348,17 @@ function downloadSummaryTxt(title, markdown, processedArticle, summaryGeneratedA
   setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
 }
 
-function maybeAutoExportSummary(settings) {
+async function maybeAutoExportSummary(settings) {
   if (!settings.autoExportTxt || !latestSummaryMarkdown) {
+    return;
+  }
+
+  const fingerprint = buildAutoExportFingerprint(
+    latestProcessedArticle,
+    latestSummaryTitle || "summary",
+    latestSummaryMarkdown
+  );
+  if (await wasSummaryAutoExported(fingerprint)) {
     return;
   }
 
@@ -1294,6 +1368,7 @@ function maybeAutoExportSummary(settings) {
     latestProcessedArticle,
     latestSummaryGeneratedAt
   );
+  await markSummaryAutoExported(fingerprint);
 }
 
 async function persistDiscussionContext(
@@ -1381,7 +1456,7 @@ async function summarizeCurrentPage() {
           setStatus(
             [qualityStatus, `已命中快取：${latestSummaryModel}`].filter(Boolean).join("，")
           );
-          maybeAutoExportSummary(settings);
+          await maybeAutoExportSummary(settings);
           return;
         }
       }
@@ -1434,7 +1509,7 @@ async function summarizeCurrentPage() {
           .filter(Boolean)
           .join("，")
       );
-      maybeAutoExportSummary(settings);
+      await maybeAutoExportSummary(settings);
     } catch (error) {
       latestSummaryMarkdown = "";
       latestSummaryTitle = "";

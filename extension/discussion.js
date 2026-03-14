@@ -756,7 +756,28 @@ function normalizeDateTime(value) {
   }
 
   const parsed = Date.parse(trimmed);
-  return Number.isNaN(parsed) ? trimmed : new Date(parsed).toISOString();
+  return Number.isNaN(parsed) ? trimmed : formatLocalUtcDateTime(new Date(parsed));
+}
+
+function formatLocalUtcDateTime(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    return "";
+  }
+
+  const pad = (value) => String(value).padStart(2, "0");
+  const year = date.getFullYear();
+  const month = pad(date.getMonth() + 1);
+  const day = pad(date.getDate());
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  const seconds = pad(date.getSeconds());
+  const offsetMinutes = -date.getTimezoneOffset();
+  const offsetSign = offsetMinutes >= 0 ? "+" : "-";
+  const absoluteOffsetMinutes = Math.abs(offsetMinutes);
+  const offsetHours = pad(Math.trunc(absoluteOffsetMinutes / 60));
+  const offsetRemainderMinutes = pad(absoluteOffsetMinutes % 60);
+
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds} UTC${offsetSign}${offsetHours}:${offsetRemainderMinutes}`;
 }
 
 function buildDiscussionExportText() {
@@ -768,9 +789,9 @@ function buildDiscussionExportText() {
     getSourceSiteLabel(sourceUrl);
   const articleDateTime = normalizeDateTime(currentContext?.articlePublishedTime);
   const summaryGeneratedAt = Number.isFinite(currentContext?.summaryGeneratedAt)
-    ? new Date(currentContext.summaryGeneratedAt).toISOString()
+    ? formatLocalUtcDateTime(new Date(currentContext.summaryGeneratedAt))
     : Number.isFinite(currentContext?.savedAt)
-      ? new Date(currentContext.savedAt).toISOString()
+      ? formatLocalUtcDateTime(new Date(currentContext.savedAt))
       : "";
 
   lines.push(title);
