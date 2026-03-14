@@ -33,7 +33,7 @@
   "content_security_policy": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'; connect-src 'self' https://generativelanguage.googleapis.com;",
   "browser_specific_settings": {
     "gecko": {
-      "id": "fire-summary@hinoki.my",
+      "id": "fire-summary@example.com",
       "data_collection_permissions": {
         "required": ["authenticationInfo", "websiteActivity", "websiteContent"]
       }
