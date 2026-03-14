@@ -65,6 +65,7 @@ const statusNode = document.getElementById("status");
 const statusTextNode = statusNode.querySelector(".status-text");
 const titleNode = document.getElementById("article-title");
 const summaryNode = document.getElementById("summary");
+const IS_PAGE_SURFACE = document.body?.dataset?.surface === "page";
 
 let latestArticleText = "";
 let latestArticleUrl = "";
@@ -74,6 +75,42 @@ let latestSummaryTitle = "";
 let latestSummaryModel = "";
 let latestSummaryGeneratedAt = 0;
 let summarizeInFlight = null;
+
+async function getPlatformInfo() {
+  if (!api?.runtime?.getPlatformInfo) {
+    return null;
+  }
+
+  try {
+    const info = await api.runtime.getPlatformInfo();
+    return info && typeof info === "object" ? info : null;
+  } catch {
+    return null;
+  }
+}
+
+async function isAndroidPlatform() {
+  const info = await getPlatformInfo();
+  return info?.os === "android";
+}
+
+async function redirectAndroidPopupToPage() {
+  if (IS_PAGE_SURFACE) {
+    return false;
+  }
+
+  if (!(await isAndroidPlatform())) {
+    return false;
+  }
+
+  if (!api.tabs?.create || !api.runtime?.getURL) {
+    return false;
+  }
+
+  await api.tabs.create({ url: api.runtime.getURL("summary.html") });
+  window.close();
+  return true;
+}
 
 async function ensureWasmReady() {
   if (!ensureWasmReady.ready) {
@@ -1583,7 +1620,9 @@ openSettingsButton.addEventListener("click", async () => {
       await api.tabs.create({ url: api.runtime.getURL("settings.html") });
     }
 
-    window.close();
+    if (!IS_PAGE_SURFACE) {
+      window.close();
+    }
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "無法開啟設定頁");
   }
@@ -1604,7 +1643,8 @@ openDiscussionButton.addEventListener("click", async () => {
       latestProcessedArticle,
       latestSummaryMarkdown,
       latestSummaryTitle || latestProcessedArticle.title,
-      latestSummaryModel
+      latestSummaryModel,
+      latestSummaryGeneratedAt
     );
 
     if (api.tabs?.create && api.runtime?.getURL) {
@@ -1612,7 +1652,9 @@ openDiscussionButton.addEventListener("click", async () => {
     } else if (api.runtime?.openOptionsPage) {
       await api.runtime.openOptionsPage();
     }
-    window.close();
+    if (!IS_PAGE_SURFACE) {
+      window.close();
+    }
   } catch (error) {
     setStatus(error instanceof Error ? error.message : "無法開啟討論頁");
   } finally {
@@ -1620,14 +1662,23 @@ openDiscussionButton.addEventListener("click", async () => {
   }
 });
 
-loadSettings()
-  .then((settings) => {
-    applyFontSize(settings.fontSize);
-    applyTypographySettings(settings);
-  })
-  .catch(() => {
-    applyFontSize(DEFAULT_SETTINGS.fontSize);
-    applyTypographySettings(DEFAULT_SETTINGS);
-  });
+(async () => {
+  try {
+    if (await redirectAndroidPopupToPage()) {
+      return;
+    }
 
-summarizeCurrentPage();
+    try {
+      const settings = await loadSettings();
+      applyFontSize(settings.fontSize);
+      applyTypographySettings(settings);
+    } catch {
+      applyFontSize(DEFAULT_SETTINGS.fontSize);
+      applyTypographySettings(DEFAULT_SETTINGS);
+    }
+
+    await summarizeCurrentPage();
+  } catch (error) {
+    setStatus(error instanceof Error ? error.message : "無法開啟摘要頁");
+  }
+})();

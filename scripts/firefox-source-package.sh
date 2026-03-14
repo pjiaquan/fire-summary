@@ -37,9 +37,9 @@ read_manifest_version() {
 
 require_command zip
 
-VERSION="$(read_manifest_version "${REPO_ROOT}/extension/manifest.firefox.desktop.json")"
+VERSION="$(read_manifest_version "${REPO_ROOT}/extension/manifest.firefox.json")"
 if [[ -z "${VERSION}" ]]; then
-  echo "Failed to read extension version from extension/manifest.firefox.desktop.json" >&2
+  echo "Failed to read extension version from extension/manifest.firefox.json" >&2
   exit 1
 fi
 

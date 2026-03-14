@@ -53,21 +53,15 @@ jobs:
 
           version="${release_tag#v}"
           manifest_version="$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' extension/manifest.json | head -n 1)"
-          firefox_desktop_manifest_version="$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' extension/manifest.firefox.desktop.json | head -n 1)"
-          firefox_android_manifest_version="$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' extension/manifest.firefox.android.json | head -n 1)"
+          firefox_manifest_version="$(sed -n 's/.*"version":[[:space:]]*"\([^"]*\)".*/\1/p' extension/manifest.firefox.json | head -n 1)"
 
           if [[ -z "${manifest_version}" ]]; then
             echo "::error::Failed to read version from extension/manifest.json"
             exit 1
           fi
 
-          if [[ -z "${firefox_desktop_manifest_version}" ]]; then
-            echo "::error::Failed to read version from extension/manifest.firefox.desktop.json"
-            exit 1
-          fi
-
-          if [[ -z "${firefox_android_manifest_version}" ]]; then
-            echo "::error::Failed to read version from extension/manifest.firefox.android.json"
+          if [[ -z "${firefox_manifest_version}" ]]; then
+            echo "::error::Failed to read version from extension/manifest.firefox.json"
             exit 1
           fi
 
@@ -76,13 +70,8 @@ jobs:
             exit 1
           fi
 
-          if [[ "${firefox_desktop_manifest_version}" != "${version}" ]]; then
-            echo "::error::Tag ${release_tag} does not match Firefox desktop manifest version ${firefox_desktop_manifest_version}"
-            exit 1
-          fi
-
-          if [[ "${firefox_android_manifest_version}" != "${version}" ]]; then
-            echo "::error::Tag ${release_tag} does not match Firefox Android manifest version ${firefox_android_manifest_version}"
+          if [[ "${firefox_manifest_version}" != "${version}" ]]; then
+            echo "::error::Tag ${release_tag} does not match Firefox manifest version ${firefox_manifest_version}"
             exit 1
           fi
 

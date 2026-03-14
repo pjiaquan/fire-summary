@@ -42,7 +42,7 @@ jobs:
       - name: Commit version update
         shell: bash
         run: |
-          git add Cargo.toml extension/manifest.json extension/manifest.firefox.desktop.json extension/manifest.firefox.android.json
+          git add Cargo.toml extension/manifest.json extension/manifest.firefox.json
           git commit -m "Release v${{ steps.bump.outputs.version }}"
 
       - name: Push release commit
