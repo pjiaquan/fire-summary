@@ -22,3 +22,4 @@ if command -v convert >/dev/null 2>&1 && [[ -f "${REPO_ROOT}/logo.png" ]]; then
 fi
 
 bash "${REPO_ROOT}/scripts/stage-extension-builds.sh"
+bash "${REPO_ROOT}/scripts/firefox-source-package.sh"

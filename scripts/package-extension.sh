@@ -40,15 +40,18 @@ if [[ -z "${VERSION}" ]]; then
   exit 1
 fi
 
-rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}"
 
 CHROME_ZIP="${DIST_DIR}/fire-summary-chrome-v${VERSION}.zip"
 FIREFOX_ZIP="${DIST_DIR}/fire-summary-firefox-v${VERSION}.zip"
+SOURCE_ZIP="${DIST_DIR}/fire-summary-firefox-source-v${VERSION}.zip"
+
+rm -f "${CHROME_ZIP}" "${FIREFOX_ZIP}"
 
 create_zip "${CHROME_DIR}" "${CHROME_ZIP}"
 create_zip "${FIREFOX_DIR}" "${FIREFOX_ZIP}"
 
-printf 'Created release packages:\n- %s\n- %s\n' \
+printf 'Created release packages:\n- %s\n- %s\n- %s\n' \
   "${CHROME_ZIP}" \
-  "${FIREFOX_ZIP}"
+  "${FIREFOX_ZIP}" \
+  "${SOURCE_ZIP}"
