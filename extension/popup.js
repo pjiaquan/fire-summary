@@ -25,7 +25,6 @@ const DEFAULT_SETTINGS = {
   maxOutputTokens: "",
   targetLanguage: "繁體中文",
   customPrompt: "",
-  shortcut: "Alt+Shift+S",
   fontSize: "medium",
   titleFont: "pingfang",
   bodyFont: "systemSans",
