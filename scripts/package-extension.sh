@@ -46,7 +46,8 @@ CHROME_ZIP="${DIST_DIR}/fire-summary-chrome-v${VERSION}.zip"
 FIREFOX_ZIP="${DIST_DIR}/fire-summary-firefox-v${VERSION}.zip"
 SOURCE_ZIP="${DIST_DIR}/fire-summary-firefox-source-v${VERSION}.zip"
 
-rm -f "${CHROME_ZIP}" "${FIREFOX_ZIP}"
+rm -f "${DIST_DIR}"/fire-summary-chrome-v*.zip
+rm -f "${DIST_DIR}"/fire-summary-firefox-v*.zip
 
 create_zip "${CHROME_DIR}" "${CHROME_ZIP}"
 create_zip "${FIREFOX_DIR}" "${FIREFOX_ZIP}"

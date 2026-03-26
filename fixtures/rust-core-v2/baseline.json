@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-03-07T12:59:32.226Z",
-  "sourceReportGeneratedAt": "2026-03-07T12:57:48.184Z",
-  "fixtureCount": 11,
+  "generatedAt": "2026-03-08T11:30:42.739Z",
+  "sourceReportGeneratedAt": "2026-03-08T11:30:35.658Z",
+  "fixtureCount": 13,
   "fixtures": [
     {
       "id": "article",
@@ -12,7 +12,7 @@
       "blockCount": 5,
       "cleanedChars": 353,
       "promptTokens": 103,
-      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "selectionStrategy": "ranked-blocks-lead-plus-diverse-sections",
       "topBlockIds": [
         "block-3",
         "block-2",
@@ -28,7 +28,7 @@
       "blockCount": 8,
       "cleanedChars": 906,
       "promptTokens": 223,
-      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "selectionStrategy": "ranked-blocks-lead-plus-diverse-sections",
       "topBlockIds": [
         "block-2",
         "block-3",
@@ -59,7 +59,7 @@
       "confidence": 0.95,
       "blockCount": 7,
       "cleanedChars": 423,
-      "promptTokens": 152,
+      "promptTokens": 153,
       "selectionStrategy": "ranked-blocks-diverse-sections",
       "topBlockIds": [
         "block-2",
@@ -76,7 +76,7 @@
       "blockCount": 5,
       "cleanedChars": 338,
       "promptTokens": 137,
-      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "selectionStrategy": "ranked-blocks-lead-plus-diverse-sections",
       "topBlockIds": [
         "block-2",
         "block-3",
@@ -139,7 +139,7 @@
       "blockCount": 4,
       "cleanedChars": 324,
       "promptTokens": 115,
-      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "selectionStrategy": "discussion-ranked-blocks-breadth-first",
       "topBlockIds": [
         "block-1",
         "block-2",
@@ -172,6 +172,38 @@
       "selectionStrategy": "ranked-blocks",
       "topBlockIds": [
         "block-1"
+      ]
+    },
+    {
+      "id": "hn-item-47292902",
+      "title": "I don't know if my job will still exist in ten years | Hacker News",
+      "pageType": "discussionThread",
+      "safeToSummarize": false,
+      "confidence": 0.76,
+      "blockCount": 74,
+      "cleanedChars": 12003,
+      "promptTokens": 724,
+      "selectionStrategy": "discussion-ranked-blocks-breadth-first",
+      "topBlockIds": [
+        "block-59",
+        "block-42",
+        "block-62"
+      ]
+    },
+    {
+      "id": "mdn-array-map",
+      "title": "Array.prototype.map() - JavaScript | MDN",
+      "pageType": "docsPage",
+      "safeToSummarize": true,
+      "confidence": 0.95,
+      "blockCount": 67,
+      "cleanedChars": 7953,
+      "promptTokens": 211,
+      "selectionStrategy": "ranked-blocks-diverse-sections",
+      "topBlockIds": [
+        "block-29",
+        "block-11",
+        "block-10"
       ]
     }
   ]

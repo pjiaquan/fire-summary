@@ -63,7 +63,7 @@ done
 rm -rf "${STAGING_DIR}/extension/pkg"
 
 SOURCE_ZIP="${DIST_DIR}/fire-summary-firefox-source-v${VERSION}.zip"
-rm -f "${SOURCE_ZIP}"
+rm -f "${DIST_DIR}"/fire-summary-firefox-source-v*.zip
 
 (
   cd "${STAGING_DIR}"

@@ -108,5 +108,27 @@
     "textContent": "Please sign in to continue.",
     "expectedPageType": "sparsePage",
     "expectedSafeToSummarize": false
+  },
+  {
+    "id": "hn-item-47292902",
+    "file": "hn-item-47292902.html",
+    "title": "I don't know if my job will still exist in ten years | Hacker News",
+    "url": "https://news.ycombinator.com/item?id=47292902",
+    "lang": "en",
+    "expectedPageType": "discussionThread",
+    "expectedSafeToSummarize": false,
+    "minBlockCount": 20,
+    "minConfidence": 0.7
+  },
+  {
+    "id": "mdn-array-map",
+    "file": "mdn-array-map.html",
+    "title": "Array.prototype.map() - JavaScript | MDN",
+    "url": "https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/map",
+    "lang": "en-US",
+    "expectedPageType": "docsPage",
+    "expectedSafeToSummarize": true,
+    "minBlockCount": 20,
+    "minConfidence": 0.85
   }
 ]

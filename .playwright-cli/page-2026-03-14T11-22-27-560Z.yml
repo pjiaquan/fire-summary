@@ -1,0 +1,12 @@
+- main [ref=e2]:
+  - heading "Fire Summary" [level=1] [ref=e4]
+  - generic [ref=e5]:
+    - button "複製摘要" [ref=e6] [cursor=pointer]
+    - button "複製全文" [ref=e7] [cursor=pointer]
+  - generic [ref=e8]:
+    - paragraph [ref=e9]:
+      - generic [ref=e10]: 等待操作
+    - heading [level=2]
+    - generic [ref=e11]: 尚未產生摘要。
+  - button "設定" [ref=e12] [cursor=pointer]
+  - button "延伸討論" [ref=e13] [cursor=pointer]

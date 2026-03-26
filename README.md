@@ -11,11 +11,11 @@ Chrome 與 Firefox 共用同一份來源，Firefox 採用可同時安裝在 Desk
 - `extension/manifest.firefox.json`: Firefox Desktop / Android 共用的 Manifest V2 模板
 - `extension/content-script.js`: 從目前頁面擷取標題、文字與備援 HTML
 - `extension/popup.*`: 最小 popup UI，呼叫 wasm 摘要函式
-- `scripts/build-extension.sh`: 產生 wasm 與可載入的 Chrome/Firefox build 目錄
+- `scripts/build-extension.sh`: 產生 wasm、可載入的 Chrome/Firefox build 目錄，以及 Firefox source zip
 
 ## Build
 
-先安裝 `wasm-pack`，然後在 repo 根目錄執行：
+先安裝 `wasm-pack` 與 `zip`，然後在 repo 根目錄執行：
 
 ```bash
 bash scripts/build-extension.sh
@@ -26,6 +26,7 @@ bash scripts/build-extension.sh
 
 - `build/chrome-extension/`
 - `build/firefox-extension/`
+- `dist/fire-summary-firefox-source-v<version>.zip`
 
 ## Package Release
 
@@ -133,55 +134,6 @@ Chrome 要用 unpacked 模式載入資料夾，不是載入 repo 根目錄，也
 2. 打開 Developer mode
 3. 選 `Load unpacked`
 4. 指到 `build/chrome-extension/`
-
-## Rust Diagnostics
-
-如果你想直接檢查 Rust Core v2 對目前分頁的判斷，可以從設定頁按 `Rust Diagnostics`。
-
-Diagnostics 頁會顯示：
-
-- page classification
-- quality warnings
-- extracted outline / blocks
-- top ranked blocks
-- compressed prompt context
-- diagnostics JSON / fixture draft export
-
-這個頁面會直接對目前 active tab 執行：
-
-- `classify_page(...)`
-- `extract_article_blocks(...)`
-- `process_article(...)`
-
-如果你從 Diagnostics 複製了 fixture 草稿，也可以直接匯入成新的 regression fixture：
-
-```bash
-node scripts/import-rust-fixture.mjs /path/to/draft.json
-```
-
-這會：
-
-- 寫入 `fixtures/rust-core-v2/<id>.html`
-- 自動更新 `fixtures/rust-core-v2/manifest.json`
-
-如果你要在匯入後順手同步 baseline，也可以直接跑：
-
-```bash
-node scripts/import-rust-fixture.mjs /path/to/draft.json --snapshot-baseline
-```
-
-如果你要一口氣做匯入後驗證，也可以用：
-
-```bash
-node scripts/import-rust-fixture.mjs /path/to/draft.json --verify
-```
-
-可用選項：
-
-- `--validate`：只跑 fixture consistency validation
-- `--run-regression`：跑 fixture regression report（使用目前已 build 的 `extension/pkg`）
-- `--verify`：等同於 `--validate --run-regression`
-- `--snapshot-baseline`：在最後重建 baseline，並再做一次完整 consistency validation
 
 ## Rust Fixture Regression
 

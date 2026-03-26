@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fire Summary - Discussion Export Test</title>
+  <style>
+    body { font-family: system-ui, sans-serif; padding: 20px; background: #1a1a2e; color: #eee; }
+    .test-area { margin-bottom: 1rem; padding: 1rem; background: #252540; border-radius: 8px; }
+    button { padding: 0.5rem 1rem; margin-right: 0.5rem; border: none; border-radius: 4px; cursor: pointer; }
+    #export-btn { background: #6366f1; color: white; }
+    #export-btn:disabled { background: #374151; cursor: not-allowed; }
+    #fallback-btn { background: #374151; color: #ccc; }
+    #status { margin-top: 0.5rem; color: #4ade80; min-height: 1.5em; }
+    #result { margin-top: 0.5rem; padding: 0.5rem; background: #1e1e32; border-radius: 4px; font-family: monospace; white-space: pre-wrap; }
+    .method { color: #fbbf24; }
+    .success { color: #4ade80; }
+    .fail { color: #f87171; }
+  </style>
+</head>
+<body>
+  <h1>Discussion Export Test</h1>
+
+  <div class="test-area">
+    <button id="add-btn">Add Test Messages</button>
+    <button id="clear-btn">Clear</button>
+    <span id="count">Messages: 0</span>
+  </div>
+
+  <div class="test-area">
+    <button id="export-btn" disabled>Export to Clipboard</button>
+    <button id="fallback-btn">Fallback Download</button>
+    <div id="status"></div>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    var messages = [];
+    var currentContext = { summaryTitle: "Test Article", articleTitle: "Test Article" };
+
+    function log(msg) { console.log("[TEST] " + msg); }
+
+    function setStatus(text) {
+      document.getElementById("status").textContent = text;
+      log("Status: " + text);
+    }
+
+    function buildExportText() {
+      var lines = ["# Discussion Export", "", "Title: " + (currentContext.summaryTitle || currentContext.articleTitle), "", "---"];
+      for (var i = 0; i < messages.length; i++) {
+        lines.push("## " + (i+1) + ". " + (messages[i].role === "user" ? "User" : "Assistant"));
+        lines.push("");
+        lines.push(messages[i].content);
+        lines.push("");
+      }
+      return lines.join("
+");
+    }
+
+    function sanitizeFilename(title) {
+      return (title || "discussion").replace(/[<>:"/\\|?*]/g, "-").replace(/\s+/g, " ").trim().slice(0, 80);
+    }
+
+    function downloadFile(title, text) {
+      var blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement("a");
+      a.href = url;
+      a.download = sanitizeFilename(title) + ".txt";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(function() { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    async function copyText(text) {
+      log("copyText called");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        try {
+          await navigator.clipboard.writeText(text);
+          log("clipboard.writeText succeeded");
+          return true;
+        } catch (err) {
+          log("clipboard.writeText failed: " + err.message);
+        }
+      } else {
+        log("clipboard.writeText not available");
+      }
+
+      try {
+        var ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "absolute";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        var ok = document.execCommand("copy");
+        document.body.removeChild(ta);
+        log("execCommand result: " + ok);
+        return ok || false;
+      } catch (e) {
+        log("execCommand failed: " + e.message);
+        return false;
+      }
+    }
+
+    document.getElementById("add-btn").onclick = function() {
+      messages = [
+        { role: "user", content: "Can you explain this?" },
+        { role: "assistant", content: "This article covers the main points." }
+      ];
+      document.getElementById("count").textContent = "Messages: " + messages.length;
+      document.getElementById("export-btn").disabled = false;
+      log("Added " + messages.length + " messages");
+    };
+
+    document.getElementById("clear-btn").onclick = function() {
+      messages = [];
+      document.getElementById("count").textContent = "Messages: 0";
+      document.getElementById("export-btn").disabled = true;
+      document.getElementById("result").textContent = "";
+      log("Cleared messages");
+    };
+
+    document.getElementById("export-btn").onclick = async function() {
+      if (messages.length === 0) {
+        setStatus("No messages to export");
+        return;
+      }
+      var text = buildExportText();
+      var filename = currentContext.summaryTitle || currentContext.articleTitle;
+      log("Exporting...");
+      var copied = await copyText(text);
+      if (copied) {
+        setStatus("Copied to clipboard!");
+        document.getElementById("result").innerHTML = '<span class="method">Method: clipboard</span> <span class="success">SUCCESS</span>';
+      } else {
+        try {
+          downloadFile(filename, text);
+          setStatus("Downloaded via fallback");
+          document.getElementById("result").innerHTML = '<span class="method">Method: download</span> <span class="success">SUCCESS</span>';
+        } catch (e) {
+          setStatus("Export failed");
+          document.getElementById("result").innerHTML = '<span class="fail">FAILED: ' + e.message + '</span>';
+        }
+      }
+    };
+
+    document.getElementById("fallback-btn").onclick = function() {
+      var text = buildExportText();
+      var filename = currentContext.summaryTitle || currentContext.articleTitle;
+      downloadFile(filename, text);
+      setStatus("Downloaded via fallback");
+    };
+
+    log("Test page loaded");
+  </script>
+</body>
+</html>
