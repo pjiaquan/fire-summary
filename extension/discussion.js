@@ -1,9 +1,12 @@
+import { setUiLanguage, t, applyTranslations } from "./i18n.js";
+
 const api = globalThis.browser ?? globalThis.chrome;
 const DISCUSSION_CONTEXT_KEY = "__discussionContext";
 const DISCUSSION_STATE_KEY = "__discussionState";
 const SESSION_API_KEY_KEY = "__sessionApiKey";
 const MAX_OUTPUT_TOKENS_LIMIT = 8192;
 const DEFAULT_SETTINGS = {
+  uiLanguage: "en",
   provider: "google_gemini",
   model: "gemini-3.1-flash-lite-preview",
   fallbackModel: "gemini-2.5-flash",
@@ -514,7 +517,7 @@ function renderMarkdownInto(node, markdown) {
   const normalized = String(markdown || "").trim();
   if (!normalized) {
     node.classList.add("empty");
-    node.textContent = "目前沒有內容。";
+    node.textContent = t("discussion.noContent");
     return;
   }
 
@@ -543,7 +546,7 @@ function renderMessageBody(message) {
   if (fragment.childNodes.length === 0) {
     const placeholder = document.createElement("p");
     placeholder.className = "stream-placeholder";
-    placeholder.textContent = "思考中...";
+    placeholder.textContent = t("discussion.thinking");
     fragment.append(placeholder);
   }
   return fragment;
@@ -564,7 +567,7 @@ function renderMessages() {
 
     const role = document.createElement("p");
     role.className = "message-role";
-    role.textContent = message.role === "user" ? "You" : "Gemini";
+    role.textContent = message.role === "user" ? t("discussion.you") : t("discussion.gemini");
 
     const body = document.createElement("div");
     body.className = "markdown";
@@ -620,7 +623,7 @@ function removeLegacySummaryMessage(nextMessages, context) {
   }
 
   const [firstMessage, ...restMessages] = nextMessages;
-  const summaryText = normalizeMessageText(context?.summaryMarkdown || "尚未找到摘要內容。");
+  const summaryText = normalizeMessageText(context?.summaryMarkdown || t("discussion.summaryNotFound"));
   const firstMessageText = normalizeMessageText(firstMessage?.content);
   if (firstMessage?.role === "assistant" && firstMessageText === summaryText) {
     return restMessages;
@@ -817,20 +820,20 @@ function buildDiscussionExportText() {
     lines.push("");
   }
 
-  lines.push("摘要");
+  lines.push(t("export.summary"));
   lines.push("");
-  lines.push((currentContext?.summaryMarkdown || "尚未找到摘要內容。").trim());
+  lines.push((currentContext?.summaryMarkdown || t("discussion.summaryNotFound")).trim());
 
   if (currentContext?.compressedContext) {
     lines.push("");
-    lines.push("高訊號文章內容");
+    lines.push(t("export.highSignalContent"));
     lines.push("");
     lines.push(currentContext.compressedContext.trim());
   }
 
   if (messages.length > 0) {
     lines.push("");
-    lines.push("延伸討論");
+    lines.push(t("export.extendedDiscussion"));
     lines.push("");
     for (const message of messages) {
       lines.push(message.role === "user" ? "You:" : "Gemini:");
@@ -1033,7 +1036,7 @@ async function sendGeminiRequest(model, settings, body, onPartial) {
 async function askGemini(question, onPartial) {
   const settings = await loadSettings();
   if (!settings.apiKey) {
-    throw new Error("請先到設定頁填入 Gemini API Key");
+    throw new Error(t("status.noApiKey"));
   }
 
   const contents = [];
@@ -1072,7 +1075,7 @@ async function askGemini(question, onPartial) {
       throw primaryError;
     }
 
-    setComposerStatus(`主模型失敗，改用 fallback：${fallbackModel}`);
+    setComposerStatus(t("discussion.mainModelFailed") + ` ${fallbackModel}`);
     onPartial?.("");
     const markdown = await sendGeminiRequest(
       fallbackModel,
@@ -1091,12 +1094,12 @@ async function submitQuestion() {
 
   const question = followupInput.value.trim();
   if (!question) {
-    setComposerStatus("請先輸入想延伸的問題。");
+    setComposerStatus(t("discussion.noQuestion"));
     return;
   }
 
   if (!currentContext) {
-    setComposerStatus("還沒有摘要上下文，請先回 popup 跑一次摘要。");
+    setComposerStatus(t("discussion.noContext"));
     return;
   }
 
@@ -1110,7 +1113,7 @@ async function submitQuestion() {
   renderMessages();
   followupInput.value = "";
   setComposerLoading(true);
-  setComposerStatus(settings.streamOutput ? "Gemini 串流回覆中..." : "Gemini 回覆中...");
+  setComposerStatus(settings.streamOutput ? t("discussion.streamingReply") : t("discussion.replying"));
 
   requestInFlight = (async () => {
     try {
@@ -1123,14 +1126,14 @@ async function submitQuestion() {
       assistantMessage.streaming = false;
       renderMessages();
       await saveDiscussionState();
-      setComposerStatus(`已使用 ${usedModel} 回覆。`);
+      setComposerStatus(t("discussion.usedModel", { model: usedModel }));
     } catch (error) {
       messages.pop();
       messages.pop();
       renderMessages();
       followupInput.value = question;
       await saveDiscussionState();
-      setComposerStatus(error instanceof Error ? error.message : "延伸討論失敗");
+      setComposerStatus(error instanceof Error ? error.message : t("discussion.failed"));
     } finally {
       setComposerLoading(false);
       followupInput.focus();
@@ -1157,22 +1160,63 @@ followupInput.addEventListener("keydown", (event) => {
   }
 });
 
-exportButton?.addEventListener("click", () => {
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // clipboard write failed, try fallback
+    }
+  }
+
+  // Fallback for mobile browsers
+  try {
+    const textarea = document.createElement("textarea");
+    textarea.value = text;
+    textarea.setAttribute("readonly", "");
+    textarea.style.position = "absolute";
+    textarea.style.left = "-9999px";
+    document.body.appendChild(textarea);
+    textarea.select();
+    const success = document.execCommand("copy");
+    textarea.remove();
+    return success || false;
+  } catch {
+    return false;
+  }
+}
+
+exportButton?.addEventListener("click", async () => {
   if (messages.length === 0) {
-    setComposerStatus("目前還沒有可匯出的延伸討論。");
+    setComposerStatus(t("discussion.noDiscussionToExport"));
     return;
   }
 
-  downloadTextFile(
-    `${currentContext?.summaryTitle || currentContext?.articleTitle || "discussion"} discussion`,
-    buildDiscussionExportText()
-  );
-  setComposerStatus("已匯出目前延伸討論。");
+  const exportText = buildDiscussionExportText();
+  const filename = `${currentContext?.summaryTitle || currentContext?.articleTitle || "discussion"} discussion`;
+
+  const copied = await copyText(exportText);
+  if (copied) {
+    setComposerStatus(t("discussion.copiedToClipboard"));
+    return;
+  }
+
+  // Clipboard failed, try file download
+  try {
+    downloadTextFile(filename, exportText);
+    setComposerStatus(t("discussion.exported"));
+  } catch (err) {
+    setComposerStatus(t("discussion.exportFailed"));
+  }
 });
 
 async function initialize() {
   try {
     const settings = await loadSettings();
+    // Apply UI language from settings
+    setUiLanguage(settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage);
+    applyTranslations(document);
     applyTypographySettings(settings);
   } catch {
     applyTypographySettings(DEFAULT_SETTINGS);
@@ -1180,21 +1224,21 @@ async function initialize() {
 
   currentContext = await loadContext();
   if (!currentContext) {
-    setDiscussionStatus("目前沒有摘要上下文。請先在 popup 產生一次摘要。");
+    setDiscussionStatus(t("discussion.noSummaryContext"));
     contextModel.textContent = "";
-    contextTitle.textContent = "尚未找到可延伸的摘要";
+    contextTitle.textContent = t("discussion.noSummaryLoaded");
     contextUrl.textContent = "";
     contextSummary.classList.add("empty");
-    contextSummary.textContent = "回到 popup 執行摘要後，再開啟這個頁面。";
+    contextSummary.textContent = t("discussion.backToPopup");
     renderMessages();
     return;
   }
 
-  setDiscussionStatus("你可以根據目前摘要繼續延伸相關話題。");
+  setDiscussionStatus(t("discussion.canContinueFromSummary"));
   contextModel.textContent = currentContext.usedModel
-    ? `摘要模型：${currentContext.usedModel}`
+    ? `${t("discussion.summaryModel")}: ${currentContext.usedModel}`
     : "";
-  contextTitle.textContent = currentContext.summaryTitle || currentContext.articleTitle || "未命名摘要";
+  contextTitle.textContent = currentContext.summaryTitle || currentContext.articleTitle || t("discussion.unnamedSummary");
   contextUrl.textContent = currentContext.articleUrl || "";
   renderMarkdownInto(contextSummary, currentContext.summaryMarkdown);
   const storedState = await loadDiscussionState();
@@ -1225,6 +1269,6 @@ async function initialize() {
 }
 
 initialize().catch((error) => {
-  setDiscussionStatus(error instanceof Error ? error.message : "討論頁初始化失敗");
+  setDiscussionStatus(error instanceof Error ? error.message : t("discussion.initializationFailed"));
   renderMessages();
 });

@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -9,27 +9,37 @@
   <body>
     <main class="shell">
       <section class="hero">
-        <p class="eyebrow">Settings</p>
-        <h1>Fire Summary</h1>
-        <p class="lead">管理 Gemini API、目標語言、Prompt 與 shortcut 偏好。</p>
+        <p class="eyebrow" data-i18n="settings.eyebrow">Settings</p>
+        <h1 data-i18n="settings.title">Fire Summary</h1>
+        <p class="lead" data-i18n="settings.lead">Manage Gemini API, target language, prompt, and shortcut preferences.</p>
       </section>
 
       <form id="settings-form" class="panel">
         <label class="field">
-          <span class="label">API Provider</span>
+          <span class="label" data-i18n="settings.uiLanguage">UI Language</span>
+          <select id="ui-language" name="uiLanguage">
+            <option value="en">English</option>
+            <option value="zh-TW">繁體中文</option>
+          </select>
+          <span class="hint" data-i18n="settings.uiLanguageHint">Extension interface language. Does not affect AI response language.</span>
+        </label>
+
+        <label class="field">
+          <span class="label" data-i18n="settings.apiProvider">API Provider</span>
           <select id="provider" name="provider">
             <option value="google_gemini">Google Gemini</option>
           </select>
         </label>
 
         <label class="field">
-          <span class="label">Model</span>
+          <span class="label" data-i18n="settings.model">Model</span>
           <input
             id="model"
             name="model"
             type="text"
             list="model-options"
-            placeholder="例如：gemini-3.1-flash-lite-preview"
+            data-i18n-placeholder="settings.placeholderModel"
+            placeholder="e.g., gemini-3.1-flash-lite-preview"
           />
           <datalist id="model-options">
             <option value="gemini-3.1-pro-preview"></option>
@@ -42,7 +52,7 @@
         </label>
 
         <label class="field">
-          <span class="label">Fallback Model</span>
+          <span class="label" data-i18n="settings.fallbackModel">Fallback Model</span>
           <select id="fallback-model" name="fallbackModel">
             <option value="gemini-3.1-pro-preview">gemini-3.1-pro-preview</option>
             <option value="gemini-3-flash-preview">gemini-3-flash-preview</option>
@@ -51,38 +61,39 @@
             <option value="gemini-2.5-flash" selected>gemini-2.5-flash</option>
             <option value="gemini-2.5-flash-lite">gemini-2.5-flash-lite</option>
           </select>
-          <span class="hint">當主模型失效或不存在時，自動改用這個模型。</span>
+          <span class="hint" data-i18n="settings.fallbackModelHint">Automatically use this model when the primary model fails or is unavailable.</span>
         </label>
 
         <label class="field">
-          <span class="label">Gemini API Key</span>
+          <span class="label" data-i18n="settings.geminiApiKey">Gemini API Key</span>
           <input id="api-key" name="apiKey" type="password" placeholder="AIza..." autocomplete="off" />
           <a
             class="link"
             href="https://aistudio.google.com/app/apikey"
             target="_blank"
             rel="noreferrer"
+            data-i18n="settings.apiKeyLink"
           >
-            前往 Google AI Studio 取得 API Key
+            Get API Key from Google AI Studio
           </a>
-          <span class="hint">預設只保留在目前瀏覽器 session。只有勾選 Remember API Key 才會長期保存。</span>
+          <span class="hint" data-i18n="settings.apiKeyHint">By default, only kept in the current browser session. Only check "Remember API Key" to persist long-term.</span>
         </label>
 
         <label class="toggle-field" for="remember-api-key">
           <span>
-            <span class="label">Remember API Key</span>
-            <span class="hint">關閉時會優先使用 session storage；若瀏覽器不支援，才退回 extension storage。</span>
+            <span class="label" data-i18n="settings.rememberApiKey">Remember API Key</span>
+            <span class="hint" data-i18n="settings.rememberApiKeyHint">When disabled, session storage is preferred; falls back to extension storage only if the browser doesn't support it.</span>
           </span>
           <input id="remember-api-key" name="rememberApiKey" type="checkbox" />
         </label>
 
         <section class="cache-box">
-          <p class="label">API Parameters</p>
-          <p class="hint">控制 Gemini 生成參數。搜尋功能只會在支援的模型上生效，並可能增加資料外送範圍。</p>
-          <p class="hint">如果你不確定怎麼選，大多數情況維持預設就好。通常只需要先調 `Temperature`。</p>
+          <p class="label" data-i18n="settings.apiParameters">API Parameters</p>
+          <p class="hint" data-i18n="settings.apiParametersHint">Controls Gemini generation parameters. Search feature only works on supported models and may increase data transfer.</p>
+          <p class="hint" data-i18n="settings.apiParametersHint2">If you're unsure, keep defaults. Usually you only need to adjust Temperature.</p>
           <div class="field-grid">
             <label class="field">
-              <span class="label">Temperature</span>
+              <span class="label" data-i18n="settings.temperature">Temperature</span>
               <input
                 id="temperature"
                 name="temperature"
@@ -92,11 +103,11 @@
                 step="0.05"
                 placeholder="0.3"
               />
-              <span class="hint">控制回覆的穩定度與創意。越低越穩定、越高越發散；摘要通常建議用低一點，例如 `0.2` 到 `0.5`。</span>
+              <span class="hint" data-i18n="settings.temperatureHint">Controls response stability and creativity. Lower is more stable, higher is more diverse. For summaries, lower values like 0.2 to 0.5 are recommended.</span>
             </label>
 
             <label class="field">
-              <span class="label">Top P</span>
+              <span class="label" data-i18n="settings.topP">Top P</span>
               <input
                 id="top-p"
                 name="topP"
@@ -104,26 +115,28 @@
                 min="0"
                 max="1"
                 step="0.05"
-                placeholder="留空代表使用模型預設"
+                data-i18n-placeholder="settings.placeholder留空代表使用模型預設"
+                placeholder="Leave empty to use model default"
               />
-              <span class="hint">控制模型從多大範圍的候選詞中挑選。通常留空即可；只有在你想更保守或更發散時才需要調整。</span>
+              <span class="hint" data-i18n="settings.topPHint">Controls how many candidate tokens the model considers. Usually leave empty to use model default; only adjust when you want more conservative or diverse output.</span>
             </label>
 
             <label class="field">
-              <span class="label">Top K</span>
+              <span class="label" data-i18n="settings.topK">Top K</span>
               <input
                 id="top-k"
                 name="topK"
                 type="number"
                 min="1"
                 step="1"
-                placeholder="留空代表使用模型預設"
+                data-i18n-placeholder="settings.placeholder留空代表使用模型預設"
+                placeholder="Leave empty to use model default"
               />
-              <span class="hint">限制每一步最多考慮多少個候選詞。一般使用者通常不需要改，留空讓模型用自己的預設最穩。</span>
+              <span class="hint" data-i18n="settings.topKHint">Limits how many candidate tokens are considered at each step. Most users don't need to change this; leaving empty lets the model use its default for stability.</span>
             </label>
 
             <label class="field">
-              <span class="label">Max Output Tokens</span>
+              <span class="label" data-i18n="settings.maxOutputTokens">Max Output Tokens</span>
               <input
                 id="max-output-tokens"
                 name="maxOutputTokens"
@@ -131,22 +144,24 @@
                 min="1"
                 max="8192"
                 step="1"
-                placeholder="留空代表使用模型預設，最大 8192"
+                data-i18n-placeholder="settings.placeholder留空代表使用模型預設"
+                placeholder="Leave empty to use model default"
               />
-              <span class="hint">控制回覆最長可以有多長。設太高會增加成本，也可能讓回覆變得冗長；摘要通常 `1024` 到 `2048` 就夠。</span>
+              <span class="hint" data-i18n="settings.maxOutputTokensHint">Controls maximum response length. Setting too high increases costs and may make responses verbose; for summaries, 1024 to 2048 is usually sufficient.</span>
             </label>
           </div>
         </section>
 
         <label class="field">
-          <span class="label">Target Language</span>
+          <span class="label" data-i18n="settings.targetLanguage">Target Language</span>
           <div id="target-language-combobox" class="combo-field">
             <div class="combo-input-row">
               <input
                 id="target-language"
                 name="targetLanguage"
                 type="text"
-                placeholder="搜尋或選擇目標語言"
+                data-i18n-placeholder="settings.placeholder搜尋或選擇目標語言"
+                placeholder="Search or select target language"
                 autocomplete="off"
                 aria-autocomplete="list"
                 aria-controls="target-language-options"
@@ -156,68 +171,70 @@
                 id="target-language-toggle"
                 class="combo-toggle"
                 type="button"
-                aria-label="顯示目標語言選單"
+                data-i18n-aria-label="settings.targetLanguageHint"
+                aria-label="Show language menu"
               >
                 ▾
               </button>
             </div>
             <div id="target-language-options" class="combo-options" role="listbox"></div>
           </div>
-          <span class="hint">輸入關鍵字可搜尋，也可以直接從下拉清單選擇。</span>
+          <span class="hint" data-i18n="settings.targetLanguageHint">Search by keyword or select from the dropdown list.</span>
         </label>
 
         <label class="field">
-          <span class="label">Custom Prompt</span>
+          <span class="label" data-i18n="settings.customPrompt">Custom Prompt</span>
           <textarea
             id="custom-prompt"
             name="customPrompt"
             rows="7"
-            placeholder="輸入你希望摘要時附加的提示，例如：請用產品經理視角整理重點與行動項目。"
+            data-i18n-placeholder="settings.customPromptPlaceholder"
+            placeholder="Enter prompts to attach during summarization, e.g., organize key points and action items from a product manager perspective."
           ></textarea>
         </label>
 
         <section class="cache-box">
-          <p class="label">Shortcut</p>
-          <p class="hint">Chrome 與 Firefox Desktop 預設快捷鍵是 `Alt+X`；觸發後會直接開啟 Fire Summary popup 並自動開始摘要。</p>
-          <p class="hint">Firefox Desktop 也會註冊同一組快捷鍵；Android Firefox 仍不支援 extension commands，會在開啟後自動切到全頁摘要介面。</p>
-          <p class="hint">如果快捷鍵沒有生效，請先到瀏覽器的 extension shortcuts 設定頁確認目前實際綁定值。</p>
+          <p class="label" data-i18n="settings.shortcut">Shortcut</p>
+          <p class="hint" data-i18n="settings.shortcutHint">Default shortcut for Chrome and Firefox Desktop is Alt+X; triggering opens Fire Summary popup and starts summarization automatically.</p>
+          <p class="hint" data-i18n="settings.shortcutHint2">Firefox Desktop also registers the same shortcut; Android Firefox doesn't support extension commands yet, and will switch to full-page summary interface when opened.</p>
+          <p class="hint" data-i18n="settings.shortcutHint3">If the shortcut doesn't work, check the browser's extension shortcuts settings page to confirm the actual binding.</p>
         </section>
 
         <label class="field">
-          <span class="label">Font Size</span>
+          <span class="label" data-i18n="settings.fontSize">Font Size</span>
           <select id="font-size" name="fontSize">
-            <option value="small">Small</option>
-            <option value="medium">Medium</option>
-            <option value="large">Large</option>
+            <option value="small" data-i18n="settings.fontSizeSmall">Small</option>
+            <option value="medium" data-i18n="settings.fontSizeMedium">Medium</option>
+            <option value="large" data-i18n="settings.fontSizeLarge">Large</option>
           </select>
         </label>
 
         <section class="cache-box">
-          <p class="label">Typography</p>
-          <p class="hint">控制 popup 摘要與延伸討論頁的標題字體、內文字體、字重與行高。</p>
+          <p class="label" data-i18n="settings.typography">Typography</p>
+          <p class="hint" data-i18n="settings.typographyHint">Controls title font, body font, weight, and line height for popup summary and discussion pages.</p>
           <div class="field-grid">
             <label class="field">
-              <span class="label">標題字體</span>
+              <span class="label" data-i18n="settings.titleFont">Title Font</span>
               <select id="title-font" name="titleFont">
-                <option value="pingfang">蘋方（PingFang）</option>
-                <option value="systemSans">系統預設無襯線體（System Sans-serif）</option>
-                <option value="notoSansTc">思源黑體（Noto Sans TC）</option>
-                <option value="serif">經典襯線體（Serif）</option>
+                <option value="pingfang" data-i18n="settings.fontPingFang">PingFang (Apple)</option>
+                <option value="systemSans" data-i18n="settings.fontSystemSans">System Sans-serif</option>
+                <option value="notoSansTc" data-i18n="settings.fontNotoSansTc">Noto Sans TC</option>
+                <option value="serif" data-i18n="settings.fontSerif">Serif</option>
               </select>
             </label>
 
             <label class="field">
-              <span class="label">內文字體</span>
+              <span class="label" data-i18n="settings.bodyFont">Body Font</span>
               <select id="body-font" name="bodyFont">
-                <option value="systemSans">系統預設無襯線體（System Sans-serif）</option>
-                <option value="pingfang">蘋方（PingFang）</option>
-                <option value="notoSansTc">思源黑體（Noto Sans TC）</option>
-                <option value="serif">經典襯線體（Serif）</option>
+                <option value="pingfang" data-i18n="settings.fontPingFang">PingFang (Apple)</option>
+                <option value="systemSans" data-i18n="settings.fontSystemSans">System Sans-serif</option>
+                <option value="notoSansTc" data-i18n="settings.fontNotoSansTc">Noto Sans TC</option>
+                <option value="serif" data-i18n="settings.fontSerif">Serif</option>
               </select>
             </label>
 
             <label class="field">
-              <span class="label">Font Weight</span>
+              <span class="label" data-i18n="settings.fontWeight">Font Weight</span>
               <select id="font-weight" name="fontWeight">
                 <option value="400">400</option>
                 <option value="500">500</option>
@@ -227,7 +244,7 @@
             </label>
 
             <label class="field">
-              <span class="label">Line Height</span>
+              <span class="label" data-i18n="settings.lineHeight">Line Height</span>
               <select id="line-height" name="lineHeight">
                 <option value="1.4">1.4</option>
                 <option value="1.5">1.5</option>
@@ -241,51 +258,46 @@
 
         <label class="toggle-field" for="stream-output">
           <span>
-            <span class="label">Stream Output</span>
-            <span class="hint">勾選後會改用 Gemini streaming API，即時回填摘要內容。</span>
+            <span class="label" data-i18n="settings.streamOutput">Stream Output</span>
+            <span class="hint" data-i18n="settings.streamOutputHint">When enabled, uses Gemini streaming API to fill in summary content in real-time.</span>
           </span>
           <input id="stream-output" name="streamOutput" type="checkbox" />
         </label>
 
         <label class="toggle-field" for="enable-google-search">
           <span>
-            <span class="label">Google Search Grounding</span>
-            <span class="hint">讓 Gemini 視需要使用 Google Search 工具。部分模型可能不支援，且會增加外部資料查詢風險。</span>
+            <span class="label" data-i18n="settings.googleSearchGrounding">Google Search Grounding</span>
+            <span class="hint" data-i18n="settings.googleSearchGroundingHint">Allows Gemini to use Google Search tool when needed. Some models may not support this and it increases external data query risk.</span>
           </span>
           <input id="enable-google-search" name="enableGoogleSearch" type="checkbox" />
         </label>
 
         <label class="toggle-field" for="auto-export-txt">
           <span>
-            <span class="label">Auto Export TXT</span>
-            <span class="hint">摘要完成後自動下載 `.txt`，檔名會用 AI 產生的標題。</span>
+            <span class="label" data-i18n="settings.autoExportTxt">Auto Export TXT</span>
+            <span class="hint" data-i18n="settings.autoExportTxtHint">Automatically download .txt after summary completes, using AI-generated title as filename.</span>
           </span>
           <input id="auto-export-txt" name="autoExportTxt" type="checkbox" />
         </label>
 
         <label class="toggle-field" for="summary-cache-enabled">
           <span>
-            <span class="label">Summary Cache</span>
-            <span class="hint">關閉後不保存摘要快取。開啟時只保存摘要結果，並會在 1 天後自動清理。</span>
+            <span class="label" data-i18n="settings.summaryCache">Summary Cache</span>
+            <span class="hint" data-i18n="settings.summaryCacheHint">When disabled, summary cache is not preserved. When enabled, only summary results are cached and automatically cleared after 1 day.</span>
           </span>
           <input id="summary-cache-enabled" name="summaryCacheEnabled" type="checkbox" />
         </label>
 
         <section class="cache-box">
-          <p class="label">Cache Protection</p>
-          <p class="hint">
-            只快取 AI 摘要結果，不保存全文。快取上限仍為 20 筆，並會在 1 天後自動清理。
-          </p>
-          <button id="clear-cache-button" type="button" class="secondary-button">清空摘要快取</button>
+          <p class="label" data-i18n="settings.cacheProtection">Cache Protection</p>
+          <p class="hint" data-i18n="settings.cacheProtectionHint">Only caches AI summary results, not full article text. Cache limit is 20 entries and auto-clears after 1 day.</p>
+          <button id="clear-cache-button" type="button" class="secondary-button" data-i18n="settings.clearCache">Clear Summary Cache</button>
         </section>
 
         <div class="footer">
-          <p id="save-status" class="save-status">尚未儲存</p>
+          <p id="save-status" class="save-status" data-i18n="settings.notSaved">Not saved</p>
           <div class="footer-actions">
-            <button id="open-diagnostics-button" type="button" class="secondary-button">
-              Rust Diagnostics
-            </button>
-            <button id="save-button" type="submit">儲存設定</button>
+            <button id="save-button" type="submit" data-i18n="settings.save">Save Settings</button>
           </div>
         </div>
       </form>

@@ -1,3 +1,5 @@
+import { setUiLanguage, getUiLanguage, t, applyTranslations } from "./i18n.js";
+
 const api = globalThis.browser ?? globalThis.chrome;
 const form = document.getElementById("settings-form");
 const saveButton = document.getElementById("save-button");
@@ -26,7 +28,7 @@ const enableGoogleSearchInput = document.getElementById("enable-google-search");
 const autoExportTxtInput = document.getElementById("auto-export-txt");
 const summaryCacheEnabledInput = document.getElementById("summary-cache-enabled");
 const clearCacheButton = document.getElementById("clear-cache-button");
-const openDiagnosticsButton = document.getElementById("open-diagnostics-button");
+const uiLanguageInput = document.getElementById("ui-language");
 const CACHE_INDEX_KEY = "__summaryCacheIndex";
 const SESSION_API_KEY_KEY = "__sessionApiKey";
 const FONT_FAMILY_OPTIONS = new Set(["pingfang", "systemSans", "notoSansTc", "serif"]);
@@ -44,6 +46,7 @@ const DEFAULT_SYSTEM_PROMPT = [
 ].join("\n");
 
 const DEFAULT_SETTINGS = {
+  uiLanguage: "en",
   provider: "google_gemini",
   model: "gemini-3.1-flash-lite-preview",
   fallbackModel: "gemini-2.5-flash",
@@ -57,9 +60,9 @@ const DEFAULT_SETTINGS = {
   customPrompt: "",
   fontSize: "medium",
   titleFont: "pingfang",
-  bodyFont: "systemSans",
-  fontWeight: "500",
-  lineHeight: "1.5",
+  bodyFont: "pingfang",
+  fontWeight: "400",
+  lineHeight: "1.6",
   streamOutput: false,
   enableGoogleSearch: false,
   autoExportTxt: false,
@@ -127,7 +130,7 @@ const WORLD_LANGUAGES = [
   "Krio",
   "Kurdî",
   "Кыргызча",
-  "ລາວ",
+  "Loith",
   "Latina",
   "Latviešu",
   "Lingála",
@@ -157,7 +160,7 @@ const WORLD_LANGUAGES = [
   "Русский",
   "Samoan",
   "Gàidhlig",
-  "Српски",
+  "Сrpски",
   "Sesotho",
   "Shona",
   "سنڌي",
@@ -340,7 +343,7 @@ function renderTargetLanguageOptions(query = "") {
   if (filteredLanguages.length === 0) {
     const emptyNode = document.createElement("div");
     emptyNode.className = "combo-empty";
-    emptyNode.textContent = "找不到符合的語言";
+    emptyNode.textContent = t("settings.noMatchLanguage");
     targetLanguageOptions.replaceChildren(emptyNode);
     return;
   }
@@ -586,13 +589,22 @@ async function clearSummaryCache() {
 }
 
 async function loadSettings() {
-  setSaveStatus("讀取設定中...");
+  setSaveStatus(t("settings.reading"));
   renderTargetLanguageOptions(targetLanguageInput.value);
   customPromptInput.placeholder = DEFAULT_SYSTEM_PROMPT;
 
   try {
     const settings = await storageGet(DEFAULT_SETTINGS);
     const sessionApiKey = await sessionStorageGet({ [SESSION_API_KEY_KEY]: "" });
+
+    // Load UI language first and apply translations
+    const uiLanguage = settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage;
+    setUiLanguage(uiLanguage);
+    if (uiLanguageInput) {
+      uiLanguageInput.value = uiLanguage;
+    }
+    applyTranslations(document);
+
     providerInput.value = settings.provider || DEFAULT_SETTINGS.provider;
     modelInput.value = settings.model || DEFAULT_SETTINGS.model;
     fallbackModelInput.value = settings.fallbackModel || DEFAULT_SETTINGS.fallbackModel;
@@ -652,21 +664,22 @@ async function loadSettings() {
     autoExportTxtInput.checked = Boolean(settings.autoExportTxt);
     summaryCacheEnabledInput.checked = Boolean(settings.summaryCacheEnabled);
     if (!sessionStorageAvailable() && !rememberApiKeyInput.checked) {
-      setSaveStatus("設定已載入。此瀏覽器不支援 session storage，API Key 仍會保存在 extension storage。");
+      setSaveStatus(t("settings.browserNoSessionStorage"));
       return;
     }
-    setSaveStatus("設定已載入");
+    setSaveStatus(t("settings.loaded"));
   } catch (error) {
-    setSaveStatus(error instanceof Error ? error.message : "設定讀取失敗");
+    setSaveStatus(error instanceof Error ? error.message : t("settings.failed"));
   }
 }
 
 form.addEventListener("submit", async (event) => {
   event.preventDefault();
   saveButton.disabled = true;
-  setSaveStatus("儲存中...");
+  setSaveStatus(t("settings.saving"));
 
   const payload = {
+    uiLanguage: uiLanguageInput.value || DEFAULT_SETTINGS.uiLanguage,
     provider: providerInput.value || DEFAULT_SETTINGS.provider,
     model: modelInput.value || DEFAULT_SETTINGS.model,
     fallbackModel: fallbackModelInput.value || DEFAULT_SETTINGS.fallbackModel,
@@ -733,13 +746,18 @@ form.addEventListener("submit", async (event) => {
     if (!payload.summaryCacheEnabled) {
       await clearSummaryCache();
     }
+
+    // Update UI language and reapply translations
+    setUiLanguage(payload.uiLanguage);
+    applyTranslations(document);
+
     if (!sessionStorageAvailable() && !payload.rememberApiKey) {
-      setSaveStatus("設定已儲存。此瀏覽器不支援 session storage，API Key 仍會保存在 extension storage。");
+      setSaveStatus(t("settings.savedNoSessionStorage"));
       return;
     }
-    setSaveStatus("設定已儲存");
+    setSaveStatus(t("settings.saved"));
   } catch (error) {
-    setSaveStatus(error instanceof Error ? error.message : "儲存失敗");
+    setSaveStatus(error instanceof Error ? error.message : t("settings.failed"));
   } finally {
     saveButton.disabled = false;
   }
@@ -747,29 +765,15 @@ form.addEventListener("submit", async (event) => {
 
 clearCacheButton.addEventListener("click", async () => {
   clearCacheButton.disabled = true;
-  setSaveStatus("清理快取中...");
+  setSaveStatus(t("settings.clearing"));
 
   try {
     await clearSummaryCache();
-    setSaveStatus("摘要快取已清空");
+    setSaveStatus(t("settings.cacheCleared"));
   } catch (error) {
-    setSaveStatus(error instanceof Error ? error.message : "快取清理失敗");
+    setSaveStatus(error instanceof Error ? error.message : t("settings.cacheClearFailed"));
   } finally {
     clearCacheButton.disabled = false;
-  }
-});
-
-openDiagnosticsButton?.addEventListener("click", async () => {
-  try {
-    if (api.tabs?.create && api.runtime?.getURL) {
-      await api.tabs.create({ url: api.runtime.getURL("diagnostics.html") });
-      setSaveStatus("已開啟 Rust Diagnostics");
-      return;
-    }
-
-    throw new Error("目前瀏覽器無法開啟 diagnostics 頁面");
-  } catch (error) {
-    setSaveStatus(error instanceof Error ? error.message : "無法開啟 diagnostics");
   }
 });
 

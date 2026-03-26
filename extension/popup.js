@@ -1,7 +1,8 @@
 import init, { process_article } from "./pkg/fire_summary.js";
+import { setUiLanguage, t, applyTranslations } from "./i18n.js";
 
 const api = globalThis.browser ?? globalThis.chrome;
-const EMPTY_SUMMARY_TEXT = "尚未產生摘要。";
+const EMPTY_SUMMARY_TEXT_KEY = "popup.noSummaryYet";
 const CACHE_PREFIX = "summaryCache:";
 const CACHE_INDEX_KEY = "__summaryCacheIndex";
 const DISCUSSION_CONTEXT_KEY = "__discussionContext";
@@ -14,6 +15,7 @@ const CACHE_MAX_MARKDOWN_CHARS = 20_000;
 const CACHE_MAX_TITLE_CHARS = 160;
 const MAX_OUTPUT_TOKENS_LIMIT = 8192;
 const DEFAULT_SETTINGS = {
+  uiLanguage: "en",
   provider: "google_gemini",
   model: "gemini-3.1-flash-lite-preview",
   fallbackModel: "gemini-2.5-flash",
@@ -106,7 +108,9 @@ async function redirectAndroidPopupToPage() {
     return false;
   }
 
-  await api.tabs.create({ url: api.runtime.getURL("summary.html") });
+  const [currentTab] = await api.tabs.query({ active: true, currentWindow: true });
+  const tabIdParam = currentTab?.id ? `?tabId=${currentTab.id}` : "";
+  await api.tabs.create({ url: api.runtime.getURL(`summary.html${tabIdParam}`) });
   window.close();
   return true;
 }
@@ -133,30 +137,9 @@ function setSummaryMessage(message) {
 }
 
 function getPageTypeLabel(pageType) {
-  switch (pageType) {
-    case "article":
-      return "文章頁";
-    case "selection":
-      return "選取內容";
-    case "docsPage":
-      return "文件頁";
-    case "searchResults":
-      return "搜尋結果頁";
-    case "listingPage":
-      return "列表頁";
-    case "productPage":
-      return "產品頁";
-    case "discussionThread":
-      return "討論串";
-    case "paywalledPage":
-      return "訂閱牆頁面";
-    case "sparsePage":
-      return "內容稀少頁";
-    case "genericPage":
-      return "一般頁面";
-    default:
-      return "未知頁面";
-  }
+  const key = `pageType.${pageType}`;
+  const translated = t(key);
+  return translated !== key ? translated : t("pageType.unknown");
 }
 
 function formatQualityStatus(quality) {
@@ -166,8 +149,8 @@ function formatQualityStatus(quality) {
 
   const label = getPageTypeLabel(quality.pageType);
   return quality.safeToSummarize
-    ? `頁面判斷：${label}`
-    : `頁面判斷：${label}，可能不是典型文章`;
+    ? t("status.pageType", { label })
+    : t("status.pageTypeMayNotBeTypical", { label });
 }
 
 function applyFontSize(fontSize) {
@@ -272,7 +255,7 @@ function escapeHtml(text) {
 }
 
 function appendInlineContent(parent, text) {
-  const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|\*([^*]+)\*/g;
+  const pattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)|`([^`]+)`|\*\*([^*]+)\*\*|(?<=[^*])\*([^*]+)\*/g;
   let lastIndex = 0;
   let match = pattern.exec(text);
 
@@ -415,13 +398,13 @@ function renderMarkdown(markdown) {
 function parseSummaryDocument(markdown, fallbackTitle) {
   const normalized = String(markdown || "").trim();
   if (!normalized) {
-    return { aiTitle: fallbackTitle || "未取得標題", bodyMarkdown: "" };
+    return { aiTitle: fallbackTitle || t("popup.noSummaryYet"), bodyMarkdown: "" };
   }
 
   const lines = normalized.split(/\r?\n/);
   const firstContentIndex = lines.findIndex((line) => line.trim() !== "");
 
-  let aiTitle = fallbackTitle || "未取得標題";
+  let aiTitle = fallbackTitle || t("popup.noSummaryYet");
   if (firstContentIndex >= 0 && /^#\s+/.test(lines[firstContentIndex])) {
     aiTitle = lines[firstContentIndex].replace(/^#\s+/, "").trim() || aiTitle;
     lines.splice(firstContentIndex, 1);
@@ -438,12 +421,12 @@ function parseSummaryDocument(markdown, fallbackTitle) {
 
 function setRenderedSummary(markdown, fallbackTitle) {
   const parsed = parseSummaryDocument(markdown, fallbackTitle);
-  titleNode.textContent = parsed.aiTitle || fallbackTitle || "未取得標題";
+  titleNode.textContent = parsed.aiTitle || fallbackTitle || t("popup.noSummaryYet");
   summaryNode.classList.remove("streaming");
 
   if (!parsed.bodyMarkdown) {
     summaryNode.classList.add("empty");
-    summaryNode.textContent = EMPTY_SUMMARY_TEXT;
+    summaryNode.textContent = t(EMPTY_SUMMARY_TEXT_KEY);
     return parsed;
   }
 
@@ -584,7 +567,7 @@ function renderStreamingPreview(markdown) {
 function setStreamingSummary(markdown, fallbackTitle) {
   const parsed = parseSummaryDocument(markdown, fallbackTitle);
   const preview = renderStreamingPreview(parsed.bodyMarkdown);
-  titleNode.textContent = parsed.aiTitle || fallbackTitle || "未取得標題";
+  titleNode.textContent = parsed.aiTitle || fallbackTitle || t("popup.noSummaryYet");
   summaryNode.classList.remove("empty");
   summaryNode.classList.add("streaming");
 
@@ -602,7 +585,7 @@ function setStreamingSummary(markdown, fallbackTitle) {
   }
 
   if (nodes.length === 0) {
-    summaryNode.textContent = EMPTY_SUMMARY_TEXT;
+    summaryNode.textContent = t(EMPTY_SUMMARY_TEXT_KEY);
     return;
   }
 
@@ -936,14 +919,30 @@ function isRestrictedUrl(url) {
 }
 
 async function loadProcessedArticleBundle() {
-  const tab = await getActiveTab();
+  let tab;
+
+  if (IS_PAGE_SURFACE) {
+    // On page surface (Android summary.html), extract tabId from URL params
+    const url = new URL(window.location.href);
+    const tabIdParam = url.searchParams.get("tabId");
+    if (tabIdParam) {
+      tab = await api.tabs.get(parseInt(tabIdParam, 10));
+    }
+    if (!tab) {
+      // Fallback to active tab if no tabId param or tab not found
+      [tab] = await api.tabs.query({ active: true, currentWindow: true });
+    }
+  } else {
+    tab = await getActiveTab();
+  }
+
   if (!tab?.id) {
-    throw new Error("找不到目前分頁");
+    throw new Error(t("status.tabNotFound"));
   }
 
   const url = tab.url || "";
   if (isRestrictedUrl(url)) {
-    throw new Error("瀏覽器內建頁面不允許注入 content script");
+    throw new Error(t("status.cannotInjectContentScript"));
   }
 
   const article = await requestArticle(tab.id);
@@ -1102,11 +1101,11 @@ function extractMarkdownFromSseText(rawText) {
 
 async function summarizeWithGemini(processedArticle, settings, url, onPartial) {
   if (settings.provider !== "google_gemini") {
-    throw new Error(`目前不支援的 provider: ${settings.provider}`);
+    throw new Error(t("status.unsupportedProvider", { provider: settings.provider }));
   }
 
   if (!settings.apiKey) {
-    throw new Error("請先到設定頁填入 Gemini API Key");
+    throw new Error(t("status.noApiKey"));
   }
 
   const model = settings.model || DEFAULT_SETTINGS.model;
@@ -1153,7 +1152,7 @@ async function summarizeWithGemini(processedArticle, settings, url, onPartial) {
     const data = await response.json().catch(() => ({}));
     const markdown = extractGeminiText(data).trim();
     if (!markdown) {
-      throw new Error("Gemini API 沒有回傳可用摘要");
+      throw new Error(t("status.geminiNoSummary"));
     }
 
     return markdown;
@@ -1168,7 +1167,7 @@ async function summarizeWithGemini(processedArticle, settings, url, onPartial) {
       return markdown;
     }
 
-    throw new Error("Gemini stream 回應格式不是 event-stream");
+    throw new Error(t("status.streamFormatError"));
   }
 
   const reader = response.body?.getReader();
@@ -1180,7 +1179,7 @@ async function summarizeWithGemini(processedArticle, settings, url, onPartial) {
       return markdown;
     }
 
-    throw new Error("Gemini streaming response 不可讀");
+    throw new Error(t("status.streamNotReadable"));
   }
 
   const decoder = new TextDecoder();
@@ -1231,7 +1230,7 @@ async function summarizeWithGemini(processedArticle, settings, url, onPartial) {
       return recovered;
     }
 
-    throw new Error("Gemini stream 沒有回傳可用摘要");
+    throw new Error(t("status.streamNoContent"));
   }
 
   return markdown.trim();
@@ -1254,7 +1253,7 @@ async function summarizeWithFallback(processedArticle, settings, url, onPartial)
       throw primaryError;
     }
 
-    setStatus(`主模型失敗，改用 fallback：${fallbackModel}`);
+    setStatus(t("discussion.mainModelFailed") + ` ${fallbackModel}`);
     const markdown = await summarizeWithGemini(
       processedArticle,
       { ...settings, model: fallbackModel },
@@ -1459,7 +1458,7 @@ async function summarizeCurrentPage() {
     return summarizeInFlight;
   }
 
-  setStatus("擷取頁面內容中...");
+  setStatus(t("status.extractingContent"));
   summarizeButton.disabled = true;
 
   summarizeInFlight = (async () => {
@@ -1490,7 +1489,7 @@ async function summarizeCurrentPage() {
             latestSummaryGeneratedAt
           );
           setStatus(
-            [qualityStatus, `已命中快取：${latestSummaryModel}`].filter(Boolean).join("，")
+            [qualityStatus, t("status.cachedModel", { model: latestSummaryModel })].filter(Boolean).join(", ")
           );
           await maybeAutoExportSummary(settings);
           return;
@@ -1498,9 +1497,9 @@ async function summarizeCurrentPage() {
       }
 
       setStatus(
-        [qualityStatus, settings.streamOutput ? "摘要串流中..." : "呼叫 Gemini API 中..."]
+        [qualityStatus, settings.streamOutput ? t("status.summaryStreaming") : t("status.callingGemini")]
           .filter(Boolean)
-          .join("，"),
+          .join(", "),
         { loading: settings.streamOutput }
       );
 
@@ -1538,12 +1537,14 @@ async function summarizeCurrentPage() {
       setStatus(
         [
           qualityStatus,
-          `${usedFallback ? "fallback" : "來源"}：${usedModel}，共 ${
-            bundle.processedArticle.stats.cleaned_chars
-          } 字`,
+          t("status.sourceModelChars", {
+            source: usedFallback ? t("status.fallbackSource") : t("status.mainSource"),
+            model: usedModel,
+            chars: bundle.processedArticle.stats.cleaned_chars,
+          }),
         ]
           .filter(Boolean)
-          .join("，")
+          .join(", ")
       );
       await maybeAutoExportSummary(settings);
     } catch (error) {
@@ -1552,7 +1553,7 @@ async function summarizeCurrentPage() {
       latestSummaryModel = "";
       latestSummaryGeneratedAt = 0;
       setSummaryMessage(error instanceof Error ? error.message : String(error));
-      setStatus("摘要失敗");
+      setStatus(t("status.failed"));
     } finally {
       summarizeButton.disabled = false;
       summarizeInFlight = null;
@@ -1566,22 +1567,22 @@ summarizeButton.addEventListener("click", async () => {
   summarizeButton.disabled = true;
   try {
     if (!latestSummaryMarkdown) {
-      setStatus("準備摘要中...");
+      setStatus(t("status.preparingSummary"));
       await summarizeCurrentPage();
     }
 
     if (!latestSummaryMarkdown) {
-      throw new Error("沒有可複製的摘要");
+      throw new Error(t("status.noSummaryToCopy"));
     }
 
     if (!latestSummaryMarkdown) {
-      throw new Error("沒有可複製的摘要");
+      throw new Error(t("status.noSummaryToCopy"));
     }
 
     await copyText(latestSummaryMarkdown);
-    setStatus(`已複製 Markdown 摘要，共 ${latestSummaryMarkdown.length} 字`);
+    setStatus(t("status.copiedMarkdownChars", { count: latestSummaryMarkdown.length }));
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "複製摘要失敗");
+    setStatus(error instanceof Error ? error.message : t("status.copyFailed"));
   } finally {
     summarizeButton.disabled = false;
   }
@@ -1591,7 +1592,7 @@ copyArticleButton.addEventListener("click", async () => {
   copyArticleButton.disabled = true;
   try {
     if (!latestArticleText) {
-      setStatus("擷取全文中...");
+      setStatus(t("status.extractingFullArticle"));
       const bundle = await loadProcessedArticleBundle();
       latestProcessedArticle = bundle.processedArticle;
       latestArticleText = bundle.processedArticle.cleaned_text || "";
@@ -1599,13 +1600,13 @@ copyArticleButton.addEventListener("click", async () => {
     }
 
     if (!latestArticleText) {
-      throw new Error("沒有可複製的全文");
+      throw new Error(t("status.noArticleToCopy"));
     }
 
     await copyText(latestArticleText);
-    setStatus(`已複製全文，共 ${latestArticleText.length} 字`);
+    setStatus(t("status.copiedFullArticleChars", { count: latestArticleText.length }));
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "複製失敗");
+    setStatus(error instanceof Error ? error.message : t("status.copyFailed"));
   } finally {
     copyArticleButton.disabled = false;
   }
@@ -1623,7 +1624,7 @@ openSettingsButton.addEventListener("click", async () => {
       window.close();
     }
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "無法開啟設定頁");
+    setStatus(error instanceof Error ? error.message : t("status.cannotOpenSettings"));
   }
 });
 
@@ -1635,7 +1636,7 @@ openDiscussionButton.addEventListener("click", async () => {
     }
 
     if (!latestSummaryMarkdown || !latestProcessedArticle) {
-      throw new Error("還沒有可延伸的摘要內容");
+      throw new Error(t("discussion.noContext"));
     }
 
     await persistDiscussionContext(
@@ -1655,7 +1656,7 @@ openDiscussionButton.addEventListener("click", async () => {
       window.close();
     }
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "無法開啟討論頁");
+    setStatus(error instanceof Error ? error.message : t("status.cannotOpenDiscussion"));
   } finally {
     openDiscussionButton.disabled = false;
   }
@@ -1669,6 +1670,9 @@ openDiscussionButton.addEventListener("click", async () => {
 
     try {
       const settings = await loadSettings();
+      // Apply UI language from settings
+      setUiLanguage(settings.uiLanguage || DEFAULT_SETTINGS.uiLanguage);
+      applyTranslations(document);
       applyFontSize(settings.fontSize);
       applyTypographySettings(settings);
     } catch {
@@ -1678,6 +1682,6 @@ openDiscussionButton.addEventListener("click", async () => {
 
     await summarizeCurrentPage();
   } catch (error) {
-    setStatus(error instanceof Error ? error.message : "無法開啟摘要頁");
+    setStatus(error instanceof Error ? error.message : t("status.cannotOpenPage"));
   }
 })();

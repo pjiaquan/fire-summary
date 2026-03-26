@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-Hant">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -13,21 +13,21 @@
       </header>
 
       <div class="actions">
-        <button id="summarize-button" type="button">複製摘要</button>
-        <button id="copy-article-button" type="button" class="secondary">複製全文</button>
+        <button id="summarize-button" type="button" data-i18n="popup.copySummary">Copy Summary</button>
+        <button id="copy-article-button" type="button" class="secondary" data-i18n="popup.copyArticle">Copy Article</button>
       </div>
 
       <section class="panel">
         <p id="status" class="status">
           <span class="status-spinner" aria-hidden="true"></span>
-          <span class="status-text">等待操作</span>
+          <span class="status-text" data-i18n="popup.waiting">Waiting for action</span>
         </p>
         <h2 id="article-title" class="title"></h2>
-        <div id="summary" class="summary empty">尚未產生摘要。</div>
+        <div id="summary" class="summary empty" data-i18n="popup.noSummaryYet">No summary generated yet.</div>
       </section>
 
-      <button id="open-settings-button" type="button" class="ghost">設定</button>
-      <button id="open-discussion-button" type="button" class="ghost">延伸討論</button>
+      <button id="open-settings-button" type="button" class="ghost" data-i18n="popup.settings">Settings</button>
+      <button id="open-discussion-button" type="button" class="ghost" data-i18n="popup.discussion">Discussion</button>
     </main>
 
     <script type="module" src="popup.js"></script>
