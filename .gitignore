@@ -3,3 +3,21 @@
 /dist
 /build
 /output/rust-fixtures
+
+# IDE / editor
+/.qwen
+/.playwright-cli
+/.tmp
+/.vscode
+/.idea
+*.swp
+*.swo
+*.swn
+*.local
+*~
+
+# Claude Code local settings (project-level .claude/ is ok to keep)
+.claude/settings.local.json
+
+# Node (if ever used)
+# node_modules/
