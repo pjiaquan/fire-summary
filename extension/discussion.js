@@ -500,7 +500,7 @@ function setComposerStatus(text) {
 
 function updateComposerActions() {
   if (exportButton) {
-    exportButton.disabled = messages.length === 0 || Boolean(requestInFlight);
+    exportButton.disabled = !currentContext || Boolean(requestInFlight);
   }
 }
 
@@ -714,15 +714,19 @@ function sanitizeFilename(title) {
 }
 
 function downloadTextFile(title, text) {
+  const safeName = sanitizeFilename(title);
   const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
   const objectUrl = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = objectUrl;
-  link.download = `${sanitizeFilename(title)}.txt`;
+  link.download = `${safeName}.txt`;
   document.body.appendChild(link);
   link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+  // Use requestAnimationFrame to ensure click is processed before removal
+  requestAnimationFrame(() => {
+    link.remove();
+    URL.revokeObjectURL(objectUrl);
+  });
 }
 
 function getContextSourceUrl() {
@@ -1161,16 +1165,17 @@ followupInput.addEventListener("keydown", (event) => {
 });
 
 async function copyText(text) {
+  // clipboard API - returns Promise, must await properly
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
       return true;
     } catch {
-      // clipboard write failed, try fallback
+      // Clipboard write failed, try fallback
     }
   }
 
-  // Fallback for mobile browsers
+  // Fallback for browsers that don't support clipboard API or lack permissions
   try {
     const textarea = document.createElement("textarea");
     textarea.value = text;
@@ -1188,12 +1193,27 @@ async function copyText(text) {
 }
 
 exportButton?.addEventListener("click", async () => {
-  if (messages.length === 0) {
-    setComposerStatus(t("discussion.noDiscussionToExport"));
+  if (!currentContext) {
+    setComposerStatus(t("discussion.noSummaryContext"));
     return;
   }
 
   const exportText = buildDiscussionExportText();
+
+  // Log for debugging
+  console.debug("[Discussion] Export click:", {
+    hasExportText: Boolean(exportText),
+    exportTextLength: exportText?.length || 0,
+    hasSummaryMarkdown: Boolean(currentContext?.summaryMarkdown),
+    messagesCount: messages.length,
+    currentContextKeys: currentContext ? Object.keys(currentContext) : [],
+  });
+
+  if (!exportText || !exportText.trim()) {
+    setComposerStatus(t("discussion.noDiscussionToExport"));
+    return;
+  }
+
   const filename = `${currentContext?.summaryTitle || currentContext?.articleTitle || "discussion"} discussion`;
 
   const copied = await copyText(exportText);
@@ -1207,6 +1227,7 @@ exportButton?.addEventListener("click", async () => {
     downloadTextFile(filename, exportText);
     setComposerStatus(t("discussion.exported"));
   } catch (err) {
+    console.error("[Discussion] Export failed:", err);
     setComposerStatus(t("discussion.exportFailed"));
   }
 });

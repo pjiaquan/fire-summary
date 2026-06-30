@@ -621,35 +621,262 @@ fn extract_from_page(
 ) -> Option<StructuredExtraction> {
     if let Some(html) = html.as_deref() {
         if let Some(extracted) = extract_structured_from_html(html, title, url) {
+            if should_consider_visible_text_fallback(&extracted) {
+                let text_fallback = text_content
+                    .as_deref()
+                    .and_then(|text| build_text_fallback_extraction(text, title, url));
+                return Some(choose_page_extraction(extracted, text_fallback));
+            }
+
             return Some(extracted);
         }
     }
 
-    let cleaned_text = normalize_optional(text_content)?;
-    if cleaned_text.chars().count() < 10 {
+    text_content
+        .as_deref()
+        .and_then(|text| build_text_fallback_extraction(text, title, url))
+}
+
+fn choose_page_extraction(
+    html_extraction: StructuredExtraction,
+    text_fallback: Option<StructuredExtraction>,
+) -> StructuredExtraction {
+    let Some(mut text_extraction) = text_fallback else {
+        return html_extraction;
+    };
+
+    if should_prefer_visible_text_fallback(&html_extraction, &text_extraction) {
+        text_extraction.quality.warnings.push(
+            "HTML extraction looked incomplete, so visible page text was used instead.".to_string(),
+        );
+        return text_extraction;
+    }
+
+    html_extraction
+}
+
+fn should_prefer_visible_text_fallback(
+    html_extraction: &StructuredExtraction,
+    text_extraction: &StructuredExtraction,
+) -> bool {
+    if !text_extraction.quality.safe_to_summarize {
+        return false;
+    }
+
+    let html_chars = html_extraction.cleaned_text.chars().count();
+    let text_chars = text_extraction.cleaned_text.chars().count();
+    if text_chars < 260 || text_chars < html_chars.saturating_add(220) {
+        return false;
+    }
+
+    let text_content_blocks = text_extraction
+        .blocks
+        .iter()
+        .filter(|block| !matches!(block.kind, BlockKind::Heading))
+        .count();
+    if text_content_blocks < 2 {
+        return false;
+    }
+
+    if !html_extraction.quality.safe_to_summarize {
+        return text_chars >= html_chars.saturating_mul(2);
+    }
+
+    if !is_article_like_page_type(&html_extraction.quality.page_type) {
+        return text_chars >= html_chars.saturating_mul(3);
+    }
+
+    false
+}
+
+fn should_consider_visible_text_fallback(extraction: &StructuredExtraction) -> bool {
+    !extraction.quality.safe_to_summarize
+        || !is_article_like_page_type(&extraction.quality.page_type)
+}
+
+fn is_article_like_page_type(page_type: &PageType) -> bool {
+    matches!(
+        page_type,
+        PageType::Article | PageType::Selection | PageType::DocsPage
+    )
+}
+
+fn build_text_fallback_extraction(
+    text_content: &str,
+    title: Option<&str>,
+    url: Option<&str>,
+) -> Option<StructuredExtraction> {
+    let blocks = extract_text_fallback_blocks(text_content);
+
+    if blocks.is_empty() {
+        let cleaned_text = normalize_text(text_content);
+        if cleaned_text.chars().count() < 10 {
+            return None;
+        }
+
+        let block = ArticleBlock {
+            id: "block-1".to_string(),
+            kind: BlockKind::Paragraph,
+            text: cleaned_text.clone(),
+            heading_path: Vec::new(),
+            heading_level: None,
+            char_count: cleaned_text.chars().count(),
+            estimated_tokens: estimate_tokens(&cleaned_text),
+            position: 0,
+        };
+        let blocks = vec![block];
+        let quality = assess_quality(&blocks, &cleaned_text, "text-fallback", title, url);
+
+        return Some(StructuredExtraction {
+            outline: Vec::new(),
+            blocks,
+            cleaned_text,
+            source: "text-fallback".to_string(),
+            quality,
+        });
+    }
+
+    let blocks = normalize_structured_blocks(blocks);
+    if blocks.is_empty() {
         return None;
     }
 
-    let block = ArticleBlock {
-        id: "block-1".to_string(),
-        kind: BlockKind::Paragraph,
-        text: cleaned_text.clone(),
-        heading_path: Vec::new(),
-        heading_level: None,
-        char_count: cleaned_text.chars().count(),
-        estimated_tokens: estimate_tokens(&cleaned_text),
-        position: 0,
-    };
-    let blocks = vec![block];
+    let cleaned_text = join_block_text(&blocks);
     let quality = assess_quality(&blocks, &cleaned_text, "text-fallback", title, url);
 
     Some(StructuredExtraction {
-        outline: Vec::new(),
+        outline: build_outline(&blocks),
         blocks,
         cleaned_text,
         source: "text-fallback".to_string(),
         quality,
     })
+}
+
+fn extract_text_fallback_blocks(text_content: &str) -> Vec<ArticleBlock> {
+    let normalized_lines = text_content
+        .replace("\r\n", "\n")
+        .replace('\r', "\n")
+        .split('\n')
+        .map(normalize_text)
+        .collect::<Vec<_>>();
+    let mut paragraphs = Vec::new();
+    let mut current_lines = Vec::new();
+
+    for line in &normalized_lines {
+        if line.is_empty() {
+            push_text_fallback_paragraph(&mut paragraphs, &mut current_lines);
+        } else {
+            current_lines.push(line.clone());
+        }
+    }
+    push_text_fallback_paragraph(&mut paragraphs, &mut current_lines);
+
+    let mut texts = paragraphs
+        .into_iter()
+        .filter(|text| {
+            text.chars().count() >= MIN_BLOCK_CHARS && !is_probable_visible_text_boilerplate(text)
+        })
+        .collect::<Vec<_>>();
+
+    if texts.len() < 2 {
+        texts = normalized_lines
+            .into_iter()
+            .filter(|text| {
+                text.chars().count() >= MIN_BLOCK_CHARS
+                    && !is_probable_visible_text_boilerplate(text)
+            })
+            .collect();
+    }
+
+    if texts.len() < 2 {
+        texts = group_sentences_for_text_fallback(text_content);
+    }
+
+    texts_to_text_fallback_blocks(texts)
+}
+
+fn push_text_fallback_paragraph(paragraphs: &mut Vec<String>, current_lines: &mut Vec<String>) {
+    if current_lines.is_empty() {
+        return;
+    }
+
+    let paragraph = normalize_text(&current_lines.join(" "));
+    if !paragraph.is_empty() {
+        paragraphs.push(paragraph);
+    }
+    current_lines.clear();
+}
+
+fn group_sentences_for_text_fallback(text_content: &str) -> Vec<String> {
+    const TARGET_BLOCK_CHARS: usize = 480;
+
+    let normalized = normalize_text(text_content);
+    let sentences = split_sentences(&normalized);
+    let mut grouped = Vec::new();
+    let mut current = String::new();
+
+    for sentence in sentences {
+        let current_chars = current.chars().count();
+        let sentence_chars = sentence.chars().count();
+        let separator_chars = if current.is_empty() { 0 } else { 1 };
+
+        if !current.is_empty()
+            && current_chars + separator_chars + sentence_chars > TARGET_BLOCK_CHARS
+        {
+            if current.chars().count() >= MIN_BLOCK_CHARS
+                && !is_probable_visible_text_boilerplate(&current)
+            {
+                grouped.push(current);
+            }
+            current = String::new();
+        }
+
+        if !current.is_empty() {
+            current.push(' ');
+        }
+        current.push_str(&sentence);
+    }
+
+    if current.chars().count() >= MIN_BLOCK_CHARS && !is_probable_visible_text_boilerplate(&current)
+    {
+        grouped.push(current);
+    }
+
+    grouped
+}
+
+fn is_probable_visible_text_boilerplate(text: &str) -> bool {
+    if text.chars().count() >= 160 {
+        return false;
+    }
+
+    is_probable_boilerplate(text)
+}
+
+fn texts_to_text_fallback_blocks(texts: Vec<String>) -> Vec<ArticleBlock> {
+    let mut blocks = Vec::new();
+    let mut seen = HashSet::new();
+
+    for text in texts {
+        if !seen.insert(text.clone()) {
+            continue;
+        }
+
+        let position = blocks.len();
+        blocks.push(ArticleBlock {
+            id: format!("block-{}", position + 1),
+            kind: BlockKind::Paragraph,
+            text: text.clone(),
+            heading_path: Vec::new(),
+            heading_level: None,
+            char_count: text.chars().count(),
+            estimated_tokens: estimate_tokens(&text),
+            position,
+        });
+    }
+
+    blocks
 }
 
 fn extract_main_text_from_html(html: &str) -> String {
@@ -2271,8 +2498,8 @@ fn is_ignored_context_element(element: ElementRef<'_>) -> bool {
     if IGNORED_TAGS.contains(&value.name()) {
         if value.name() == "template" {
             let is_astro_template = value.attr("data-astro-template").is_some();
-            let is_shadow_template = value.attr("shadowrootmode").is_some()
-                || value.attr("shadowroot").is_some();
+            let is_shadow_template =
+                value.attr("shadowrootmode").is_some() || value.attr("shadowroot").is_some();
             if !is_astro_template || is_shadow_template {
                 return true;
             }
@@ -3407,8 +3634,16 @@ mod tests {
         })
         .expect("astro template content should be processed");
 
-        assert!(result.cleaned_text.contains("releasing two reasoning models"));
-        assert!(result.cleaned_text.contains("Mixture-of-Experts architecture"));
+        assert!(
+            result
+                .cleaned_text
+                .contains("releasing two reasoning models")
+        );
+        assert!(
+            result
+                .cleaned_text
+                .contains("Mixture-of-Experts architecture")
+        );
         assert!(!result.cleaned_text.contains("generic template payload"));
     }
 
@@ -3718,6 +3953,103 @@ mod tests {
 
         assert!(matches!(result.quality.page_type, PageType::Article));
         assert!(result.quality.safe_to_summarize);
+    }
+
+    #[test]
+    fn process_article_uses_visible_text_when_html_is_incomplete() {
+        let html = r#"
+        <html lang="en">
+          <body>
+            <main>
+              <article class="metered-preview">
+                <h1>Story preview</h1>
+                <p>
+                  This preview shell contains only a short teaser and no article body.
+                </p>
+              </article>
+            </main>
+          </body>
+        </html>
+        "#;
+        let visible_text = r#"
+Why paid readers still need local extraction
+Member-only story
+Listen
+Share
+Subscribe to unlock every story on Medium.
+
+Paid readers can see the full article in the rendered page, but a browser extension still has to choose the right source text from the document it receives.
+
+When the semantic article container is replaced by membership prompts, visible text can be a better fallback because it reflects what the user is actually allowed to read.
+
+The extraction pipeline should prefer that visible article body only when it is substantially longer, structured like an article, and safer to summarize than the HTML candidate.
+
+This keeps normal websites on the higher precision HTML path while allowing legitimate subscribers to summarize the stories they can already see in their browser.
+        "#;
+
+        let result = process_article_input(ArticleInput {
+            url: Some("https://medium.com/@reader/local-extraction-for-paid-stories".to_string()),
+            title: Some("Why paid readers still need local extraction".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: Some(visible_text.to_string()),
+            html: Some(html.to_string()),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
+        })
+        .expect("visible paid article text should be processed");
+
+        assert_eq!(result.source, "text-fallback");
+        assert!(matches!(result.quality.page_type, PageType::Article));
+        assert!(result.quality.safe_to_summarize);
+        assert!(
+            result
+                .cleaned_text
+                .contains("legitimate subscribers to summarize")
+        );
+        assert!(!result.cleaned_text.contains("short teaser"));
+        assert!(
+            result
+                .quality
+                .warnings
+                .iter()
+                .any(|warning| warning.contains("visible page text"))
+        );
+    }
+
+    #[test]
+    fn process_article_preserves_short_text_fallback_as_sparse_page() {
+        let result = process_article_input(ArticleInput {
+            url: Some("https://example.com/login".to_string()),
+            title: Some("Sign in".to_string()),
+            lang: Some("en".to_string()),
+            meta_description: None,
+            canonical_url: None,
+            byline: None,
+            published_time: None,
+            selection_text: None,
+            text_content: Some("Please sign in to continue.".to_string()),
+            html: Some(
+                "<html><body><main><p>Please sign in to continue.</p></main></body></html>"
+                    .to_string(),
+            ),
+            max_sentences: Some(3),
+            max_chars: Some(320),
+            max_prompt_chars: Some(1200),
+            max_prompt_tokens: Some(900),
+        })
+        .expect("short text fallback should still be classified");
+
+        assert_eq!(result.source, "text-fallback");
+        assert!(matches!(result.quality.page_type, PageType::SparsePage));
+        assert!(!result.quality.safe_to_summarize);
+        assert_eq!(result.cleaned_text, "Please sign in to continue.");
     }
 
     #[test]
